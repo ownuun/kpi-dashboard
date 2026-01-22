@@ -47,7 +47,7 @@ async function getMetrics(teamId: string): Promise<DashboardMetrics> {
     WHERE team_id = ${teamId}
       AND ((date >= ${curStart} AND date <= ${curEnd}) 
            OR (date >= ${prevStart} AND date <= ${prevEnd}))
-    GROUP BY period, type
+    GROUP BY 1, type
   `
 
   const getData = (period: string, type: string) => {
