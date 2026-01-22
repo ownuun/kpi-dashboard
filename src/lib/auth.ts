@@ -26,50 +26,43 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   callbacks: {
     async signIn({ user }) {
-      if (!user.email) return false
-
-      try {
-        const cookieStore = await cookies()
-        const pendingInviteCode = cookieStore.get('pending_invite_code')?.value
-
-        if (pendingInviteCode) {
-          const team = await prisma.team.findUnique({
-            where: { inviteCode: pendingInviteCode },
-          })
-
-          if (team) {
-            await prisma.user.upsert({
-              where: { email: user.email },
-              update: { teamId: team.id },
-              create: {
-                email: user.email,
-                name: user.name,
-                image: user.image,
-                teamId: team.id,
-              },
-            })
-
-            cookieStore.delete('pending_invite_code')
-          }
-        }
-
-        return true
-      } catch (error) {
-        console.error('Sign in error:', error)
-        return true
-      }
+      return !!user.email
     },
 
     async jwt({ token, user, trigger, session }) {
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email },
-          select: { id: true, teamId: true, name: true, image: true },
+          select: { id: true, teamId: true },
         })
 
         if (dbUser) {
           token.userId = dbUser.id
           token.teamId = dbUser.teamId
+
+          if (!dbUser.teamId) {
+            try {
+              const cookieStore = await cookies()
+              const pendingInviteCode = cookieStore.get('pending_invite_code')?.value
+
+              if (pendingInviteCode) {
+                const team = await prisma.team.findUnique({
+                  where: { inviteCode: pendingInviteCode },
+                })
+
+                if (team) {
+                  await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: { teamId: team.id },
+                  })
+                  token.teamId = team.id
+                  cookieStore.delete('pending_invite_code')
+                }
+              }
+            } catch (error) {
+              console.error('Invite code processing error:', error)
+            }
+          }
         }
       }
 
