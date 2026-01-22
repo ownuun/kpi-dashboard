@@ -155,36 +155,38 @@ async function getExpenseByCategory(teamId: string): Promise<CategoryBreakdown[]
 }
 
 async function getMonthlyTrend(teamId: string): Promise<MonthlyTrend[]> {
-  const trends: MonthlyTrend[] = []
   const now = new Date()
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    return { date, bounds: getMonthBounds(date) }
+  })
 
-  for (let i = 5; i >= 0; i--) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const { start, end } = getMonthBounds(date)
+  const results = await Promise.all(
+    months.map(({ bounds: { start, end } }) =>
+      Promise.all([
+        prisma.transaction.aggregate({
+          where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
+          _sum: { amount: true },
+        }),
+      ])
+    )
+  )
 
-    const [income, expense] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
-        _sum: { amount: true },
-      }),
-    ])
-
+  return months.map(({ date }, i) => {
+    const [income, expense] = results[i]
     const incomeTotal = income._sum.amount ?? 0
     const expenseTotal = expense._sum.amount ?? 0
-
-    trends.push({
+    return {
       month: date.toLocaleDateString('ko-KR', { month: 'short' }),
       income: incomeTotal,
       expense: expenseTotal,
       netProfit: incomeTotal - expenseTotal,
-    })
-  }
-
-  return trends
+    }
+  })
 }
 
 function getWeekBounds(date: Date): { start: Date; end: Date } {
@@ -199,39 +201,39 @@ function getWeekBounds(date: Date): { start: Date; end: Date } {
 }
 
 async function getWeeklyTrend(teamId: string): Promise<WeeklyTrend[]> {
-  const trends: WeeklyTrend[] = []
   const now = new Date()
-
-  for (let i = 7; i >= 0; i--) {
+  const weeks = Array.from({ length: 8 }, (_, i) => {
     const date = new Date(now)
-    date.setDate(date.getDate() - i * 7)
-    const { start, end } = getWeekBounds(date)
+    date.setDate(date.getDate() - (7 - i) * 7)
+    return { date, bounds: getWeekBounds(date) }
+  })
 
-    const [income, expense] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.aggregate({
-        where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
-        _sum: { amount: true },
-      }),
-    ])
+  const results = await Promise.all(
+    weeks.map(({ bounds: { start, end } }) =>
+      Promise.all([
+        prisma.transaction.aggregate({
+          where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
+          _sum: { amount: true },
+        }),
+      ])
+    )
+  )
 
+  return weeks.map(({ bounds: { start } }, i) => {
+    const [income, expense] = results[i]
     const incomeTotal = income._sum.amount ?? 0
     const expenseTotal = expense._sum.amount ?? 0
-
-    const weekLabel = `${start.getMonth() + 1}/${start.getDate()}`
-
-    trends.push({
-      week: weekLabel,
+    return {
+      week: `${start.getMonth() + 1}/${start.getDate()}`,
       income: incomeTotal,
       expense: expenseTotal,
       netProfit: incomeTotal - expenseTotal,
-    })
-  }
-
-  return trends
+    }
+  })
 }
 
 async function getRecentTransactions(
