@@ -2,6 +2,7 @@
 
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import type {
   DashboardData,
   DashboardMetrics,
@@ -23,34 +24,41 @@ function getPreviousMonthBounds(date: Date): { start: Date; end: Date } {
   return getMonthBounds(prev)
 }
 
+interface MetricsRow {
+  period: string
+  type: string
+  total: bigint | null
+}
+
 async function getMetrics(teamId: string): Promise<DashboardMetrics> {
   const now = new Date()
   const { start: curStart, end: curEnd } = getMonthBounds(now)
   const { start: prevStart, end: prevEnd } = getPreviousMonthBounds(now)
 
-  const [curIncome, curExpense, prevIncome, prevExpense] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: { teamId, type: 'INCOME', date: { gte: curStart, lte: curEnd } },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { teamId, type: 'EXPENSE', date: { gte: curStart, lte: curEnd } },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { teamId, type: 'INCOME', date: { gte: prevStart, lte: prevEnd } },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { teamId, type: 'EXPENSE', date: { gte: prevStart, lte: prevEnd } },
-      _sum: { amount: true },
-    }),
-  ])
+  const results = await prisma.$queryRaw<MetricsRow[]>`
+    SELECT 
+      CASE 
+        WHEN date >= ${curStart} AND date <= ${curEnd} THEN 'current'
+        ELSE 'previous'
+      END as period,
+      type,
+      SUM(amount) as total
+    FROM transactions
+    WHERE team_id = ${teamId}
+      AND ((date >= ${curStart} AND date <= ${curEnd}) 
+           OR (date >= ${prevStart} AND date <= ${prevEnd}))
+    GROUP BY period, type
+  `
 
-  const incomeTotal = curIncome._sum.amount ?? 0
-  const expenseTotal = curExpense._sum.amount ?? 0
-  const prevIncomeTotal = prevIncome._sum.amount ?? 0
-  const prevExpenseTotal = prevExpense._sum.amount ?? 0
+  const getData = (period: string, type: string) => {
+    const row = results.find(r => r.period === period && r.type === type)
+    return Number(row?.total ?? 0)
+  }
+
+  const incomeTotal = getData('current', 'INCOME')
+  const expenseTotal = getData('current', 'EXPENSE')
+  const prevIncomeTotal = getData('previous', 'INCOME')
+  const prevExpenseTotal = getData('previous', 'EXPENSE')
 
   const incomeChange = prevIncomeTotal > 0
     ? ((incomeTotal - prevIncomeTotal) / prevIncomeTotal) * 100
@@ -84,114 +92,107 @@ async function getMetrics(teamId: string): Promise<DashboardMetrics> {
   }
 }
 
-async function getIncomeByCategory(teamId: string): Promise<CategoryBreakdown[]> {
-  const now = new Date()
-  const { start, end } = getMonthBounds(now)
-
-  const grouped = await prisma.transaction.groupBy({
-    by: ['categoryId'],
-    where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
-    _sum: { amount: true },
-  })
-
-  if (grouped.length === 0) return []
-
-  const total = grouped.reduce((sum, g) => sum + (g._sum.amount ?? 0), 0)
-  const categories = await prisma.category.findMany({
-    where: { id: { in: grouped.map((g) => g.categoryId) } },
-    select: { id: true, name: true, color: true },
-  })
-
-  const categoryMap = new Map(categories.map((c) => [c.id, c]))
-
-  return grouped
-    .map((g) => {
-      const cat = categoryMap.get(g.categoryId)
-      const amount = g._sum.amount ?? 0
-      return {
-        categoryId: g.categoryId,
-        categoryName: cat?.name ?? 'Unknown',
-        categoryColor: cat?.color ?? '#6B7280',
-        total: amount,
-        percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
-      }
-    })
-    .sort((a, b) => b.total - a.total)
+interface CategoryRow {
+  category_id: string
+  name: string
+  color: string
+  type: string
+  total: bigint
 }
 
-async function getExpenseByCategory(teamId: string): Promise<CategoryBreakdown[]> {
+async function getCategoryBreakdown(teamId: string): Promise<{
+  income: CategoryBreakdown[]
+  expense: CategoryBreakdown[]
+}> {
   const now = new Date()
   const { start, end } = getMonthBounds(now)
 
-  const grouped = await prisma.transaction.groupBy({
-    by: ['categoryId'],
-    where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
-    _sum: { amount: true },
-  })
+  const results = await prisma.$queryRaw<CategoryRow[]>`
+    SELECT 
+      t.category_id,
+      c.name,
+      c.color,
+      t.type,
+      SUM(t.amount) as total
+    FROM transactions t
+    JOIN categories c ON t.category_id = c.id
+    WHERE t.team_id = ${teamId}
+      AND t.date >= ${start} AND t.date <= ${end}
+    GROUP BY t.category_id, c.name, c.color, t.type
+    ORDER BY total DESC
+  `
 
-  if (grouped.length === 0) return []
+  const processType = (type: string): CategoryBreakdown[] => {
+    const filtered = results.filter(r => r.type === type)
+    const total = filtered.reduce((sum, r) => sum + Number(r.total), 0)
+    return filtered.map(r => ({
+      categoryId: r.category_id,
+      categoryName: r.name,
+      categoryColor: r.color,
+      total: Number(r.total),
+      percentage: total > 0 ? Math.round((Number(r.total) / total) * 1000) / 10 : 0,
+    }))
+  }
 
-  const total = grouped.reduce((sum, g) => sum + (g._sum.amount ?? 0), 0)
-  const categories = await prisma.category.findMany({
-    where: { id: { in: grouped.map((g) => g.categoryId) } },
-    select: { id: true, name: true, color: true },
-  })
+  return {
+    income: processType('INCOME'),
+    expense: processType('EXPENSE'),
+  }
+}
 
-  const categoryMap = new Map(categories.map((c) => [c.id, c]))
-
-  return grouped
-    .map((g) => {
-      const cat = categoryMap.get(g.categoryId)
-      const amount = g._sum.amount ?? 0
-      return {
-        categoryId: g.categoryId,
-        categoryName: cat?.name ?? 'Unknown',
-        categoryColor: cat?.color ?? '#6B7280',
-        total: amount,
-        percentage: total > 0 ? Math.round((amount / total) * 1000) / 10 : 0,
-      }
-    })
-    .sort((a, b) => b.total - a.total)
+interface TrendRow {
+  period_start: Date
+  type: string
+  total: bigint
 }
 
 async function getMonthlyTrend(teamId: string): Promise<MonthlyTrend[]> {
   const now = new Date()
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    return { date, bounds: getMonthBounds(date) }
-  })
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
 
-  const results = await Promise.all(
-    months.map(({ bounds: { start, end } }) =>
-      Promise.all([
-        prisma.transaction.aggregate({
-          where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
-          _sum: { amount: true },
-        }),
-        prisma.transaction.aggregate({
-          where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
-          _sum: { amount: true },
-        }),
-      ])
+  const results = await prisma.$queryRaw<TrendRow[]>`
+    SELECT 
+      DATE_TRUNC('month', date) as period_start,
+      type,
+      SUM(amount) as total
+    FROM transactions
+    WHERE team_id = ${teamId}
+      AND date >= ${sixMonthsAgo}
+    GROUP BY period_start, type
+    ORDER BY period_start
+  `
+
+  const months: MonthlyTrend[] = []
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const monthStart = date.getTime()
+    
+    const income = results.find(r => 
+      r.type === 'INCOME' && new Date(r.period_start).getMonth() === date.getMonth() &&
+      new Date(r.period_start).getFullYear() === date.getFullYear()
     )
-  )
-
-  return months.map(({ date }, i) => {
-    const [income, expense] = results[i]
-    const incomeTotal = income._sum.amount ?? 0
-    const expenseTotal = expense._sum.amount ?? 0
-    return {
+    const expense = results.find(r => 
+      r.type === 'EXPENSE' && new Date(r.period_start).getMonth() === date.getMonth() &&
+      new Date(r.period_start).getFullYear() === date.getFullYear()
+    )
+    
+    const incomeTotal = Number(income?.total ?? 0)
+    const expenseTotal = Number(expense?.total ?? 0)
+    
+    months.push({
       month: date.toLocaleDateString('ko-KR', { month: 'short' }),
       income: incomeTotal,
       expense: expenseTotal,
       netProfit: incomeTotal - expenseTotal,
-    }
-  })
+    })
+  }
+
+  return months
 }
 
 function getWeekBounds(date: Date): { start: Date; end: Date } {
   const day = date.getDay()
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Monday as first day
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
   const start = new Date(date.getFullYear(), date.getMonth(), diff)
   start.setHours(0, 0, 0, 0)
   const end = new Date(start)
@@ -202,38 +203,57 @@ function getWeekBounds(date: Date): { start: Date; end: Date } {
 
 async function getWeeklyTrend(teamId: string): Promise<WeeklyTrend[]> {
   const now = new Date()
-  const weeks = Array.from({ length: 8 }, (_, i) => {
+  const eightWeeksAgo = new Date(now)
+  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 8 * 7)
+
+  const results = await prisma.$queryRaw<TrendRow[]>`
+    SELECT 
+      DATE_TRUNC('week', date) as period_start,
+      type,
+      SUM(amount) as total
+    FROM transactions
+    WHERE team_id = ${teamId}
+      AND date >= ${eightWeeksAgo}
+    GROUP BY period_start, type
+    ORDER BY period_start
+  `
+
+  const weeks: WeeklyTrend[] = []
+  for (let i = 7; i >= 0; i--) {
     const date = new Date(now)
-    date.setDate(date.getDate() - (7 - i) * 7)
-    return { date, bounds: getWeekBounds(date) }
-  })
-
-  const results = await Promise.all(
-    weeks.map(({ bounds: { start, end } }) =>
-      Promise.all([
-        prisma.transaction.aggregate({
-          where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
-          _sum: { amount: true },
-        }),
-        prisma.transaction.aggregate({
-          where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
-          _sum: { amount: true },
-        }),
-      ])
-    )
-  )
-
-  return weeks.map(({ bounds: { start } }, i) => {
-    const [income, expense] = results[i]
-    const incomeTotal = income._sum.amount ?? 0
-    const expenseTotal = expense._sum.amount ?? 0
-    return {
+    date.setDate(date.getDate() - i * 7)
+    const { start } = getWeekBounds(date)
+    
+    const weekStart = new Date(start)
+    weekStart.setHours(0, 0, 0, 0)
+    
+    const income = results.find(r => {
+      const rStart = new Date(r.period_start)
+      return r.type === 'INCOME' && 
+        rStart.getFullYear() === weekStart.getFullYear() &&
+        rStart.getMonth() === weekStart.getMonth() &&
+        rStart.getDate() === weekStart.getDate()
+    })
+    const expense = results.find(r => {
+      const rStart = new Date(r.period_start)
+      return r.type === 'EXPENSE' && 
+        rStart.getFullYear() === weekStart.getFullYear() &&
+        rStart.getMonth() === weekStart.getMonth() &&
+        rStart.getDate() === weekStart.getDate()
+    })
+    
+    const incomeTotal = Number(income?.total ?? 0)
+    const expenseTotal = Number(expense?.total ?? 0)
+    
+    weeks.push({
       week: `${start.getMonth() + 1}/${start.getDate()}`,
       income: incomeTotal,
       expense: expenseTotal,
       netProfit: incomeTotal - expenseTotal,
-    }
-  })
+    })
+  }
+
+  return weeks
 }
 
 async function getRecentTransactions(
@@ -272,11 +292,10 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
 
     const teamId = session.user.teamId
 
-    const [metrics, incomeByCategory, expenseByCategory, monthlyTrend, weeklyTrend, recentTransactions] =
+    const [metrics, categoryBreakdown, monthlyTrend, weeklyTrend, recentTransactions] =
       await Promise.all([
         getMetrics(teamId),
-        getIncomeByCategory(teamId),
-        getExpenseByCategory(teamId),
+        getCategoryBreakdown(teamId),
         getMonthlyTrend(teamId),
         getWeeklyTrend(teamId),
         getRecentTransactions(teamId),
@@ -286,8 +305,8 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
       success: true,
       data: {
         metrics,
-        incomeByCategory,
-        expenseByCategory,
+        incomeByCategory: categoryBreakdown.income,
+        expenseByCategory: categoryBreakdown.expense,
         monthlyTrend,
         weeklyTrend,
         recentTransactions,
