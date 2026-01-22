@@ -134,5 +134,6 @@ model Transaction {
   @@index([teamId, date])
   @@index([teamId, type])
   @@index([teamId, categoryId])
+  @@index([teamId, type, date])
   @@map("transactions")
 }

@@ -3,6 +3,7 @@
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { unstable_cache } from 'next/cache'
 import type {
   DashboardData,
   DashboardMetrics,
@@ -282,6 +283,33 @@ async function getRecentTransactions(
   }))
 }
 
+async function fetchDashboardData(teamId: string) {
+  const [metrics, categoryBreakdown, monthlyTrend, weeklyTrend, recentTransactions] =
+    await Promise.all([
+      getMetrics(teamId),
+      getCategoryBreakdown(teamId),
+      getMonthlyTrend(teamId),
+      getWeeklyTrend(teamId),
+      getRecentTransactions(teamId),
+    ])
+
+  return {
+    metrics,
+    incomeByCategory: categoryBreakdown.income,
+    expenseByCategory: categoryBreakdown.expense,
+    monthlyTrend,
+    weeklyTrend,
+    recentTransactions,
+  }
+}
+
+const getCachedDashboardData = (teamId: string) =>
+  unstable_cache(
+    () => fetchDashboardData(teamId),
+    [`dashboard-${teamId}`],
+    { revalidate: 300, tags: [`dashboard-${teamId}`] }
+  )()
+
 export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
   try {
     const session = await auth()
@@ -290,28 +318,9 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const teamId = session.user.teamId
+    const data = await getCachedDashboardData(session.user.teamId)
 
-    const [metrics, categoryBreakdown, monthlyTrend, weeklyTrend, recentTransactions] =
-      await Promise.all([
-        getMetrics(teamId),
-        getCategoryBreakdown(teamId),
-        getMonthlyTrend(teamId),
-        getWeeklyTrend(teamId),
-        getRecentTransactions(teamId),
-      ])
-
-    return {
-      success: true,
-      data: {
-        metrics,
-        incomeByCategory: categoryBreakdown.income,
-        expenseByCategory: categoryBreakdown.expense,
-        monthlyTrend,
-        weeklyTrend,
-        recentTransactions,
-      },
-    }
+    return { success: true, data }
   } catch (error) {
     console.error('getDashboardData error:', error)
     return { success: false, error: 'Failed to fetch dashboard data' }
