@@ -187,3 +187,15 @@ export async function regenerateInviteCode(): Promise<ActionResult<string>> {
     return { success: false, error: '초대 코드 재생성에 실패했습니다' }
   }
 }
+
+export async function joinTeamAndUpdateSession(
+  inviteCode: string
+): Promise<ActionResult<{ teamId: string; teamName: string }>> {
+  const result = await joinTeam(inviteCode)
+  
+  if (result.success) {
+    revalidatePath('/')
+  }
+  
+  return result
+}

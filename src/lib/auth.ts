@@ -77,6 +77,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.teamId = session.teamId
       }
 
+      if (token.userId && !token.teamId) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { teamId: true },
+        })
+        if (dbUser?.teamId) {
+          token.teamId = dbUser.teamId
+        }
+      }
+
       return token
     },
 

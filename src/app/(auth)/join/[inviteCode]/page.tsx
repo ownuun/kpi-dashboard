@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { joinTeam } from '@/actions/teams'
+import { joinTeamAndUpdateSession } from '@/actions/teams'
 
 interface JoinPageProps {
   params: Promise<{ inviteCode: string }>
@@ -80,7 +80,7 @@ export default async function JoinPage({ params }: JoinPageProps) {
             <form
               action={async () => {
                 'use server'
-                const result = await joinTeam(inviteCode.toUpperCase())
+                const result = await joinTeamAndUpdateSession(inviteCode.toUpperCase())
                 if (result.success) {
                   redirect('/')
                 }
