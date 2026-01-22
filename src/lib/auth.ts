@@ -3,7 +3,6 @@ import Google from 'next-auth/providers/google'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
-import { cache } from 'react'
 
 const { handlers, auth: uncachedAuth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -87,8 +86,7 @@ const { handlers, auth: uncachedAuth, signIn, signOut } = NextAuth({
   },
 })
 
-// Cache auth() to deduplicate calls within the same request
-export const auth = cache(uncachedAuth)
+export const auth = uncachedAuth
 export { handlers, signIn, signOut }
 
 declare module 'next-auth' {
