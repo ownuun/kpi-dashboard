@@ -7,6 +7,7 @@ import type {
   DashboardMetrics,
   CategoryBreakdown,
   MonthlyTrend,
+  WeeklyTrend,
   RecentTransaction,
   ActionResult,
 } from '@/types'
@@ -186,6 +187,53 @@ async function getMonthlyTrend(teamId: string): Promise<MonthlyTrend[]> {
   return trends
 }
 
+function getWeekBounds(date: Date): { start: Date; end: Date } {
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Monday as first day
+  const start = new Date(date.getFullYear(), date.getMonth(), diff)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  return { start, end }
+}
+
+async function getWeeklyTrend(teamId: string): Promise<WeeklyTrend[]> {
+  const trends: WeeklyTrend[] = []
+  const now = new Date()
+
+  for (let i = 7; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i * 7)
+    const { start, end } = getWeekBounds(date)
+
+    const [income, expense] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { teamId, type: 'INCOME', date: { gte: start, lte: end } },
+        _sum: { amount: true },
+      }),
+      prisma.transaction.aggregate({
+        where: { teamId, type: 'EXPENSE', date: { gte: start, lte: end } },
+        _sum: { amount: true },
+      }),
+    ])
+
+    const incomeTotal = income._sum.amount ?? 0
+    const expenseTotal = expense._sum.amount ?? 0
+
+    const weekLabel = `${start.getMonth() + 1}/${start.getDate()}`
+
+    trends.push({
+      week: weekLabel,
+      income: incomeTotal,
+      expense: expenseTotal,
+      netProfit: incomeTotal - expenseTotal,
+    })
+  }
+
+  return trends
+}
+
 async function getRecentTransactions(
   teamId: string,
   limit = 10
@@ -222,12 +270,13 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
 
     const teamId = session.user.teamId
 
-    const [metrics, incomeByCategory, expenseByCategory, monthlyTrend, recentTransactions] =
+    const [metrics, incomeByCategory, expenseByCategory, monthlyTrend, weeklyTrend, recentTransactions] =
       await Promise.all([
         getMetrics(teamId),
         getIncomeByCategory(teamId),
         getExpenseByCategory(teamId),
         getMonthlyTrend(teamId),
+        getWeeklyTrend(teamId),
         getRecentTransactions(teamId),
       ])
 
@@ -238,6 +287,7 @@ export async function getDashboardData(): Promise<ActionResult<DashboardData>> {
         incomeByCategory,
         expenseByCategory,
         monthlyTrend,
+        weeklyTrend,
         recentTransactions,
       },
     }

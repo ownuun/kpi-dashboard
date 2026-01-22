@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Bar,
   ComposedChart,
@@ -12,18 +13,43 @@ import {
   Legend,
 } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatKRW } from '@/lib/format'
-import type { MonthlyTrend } from '@/types'
+import type { MonthlyTrend, WeeklyTrend } from '@/types'
 
 interface TrendChartProps {
-  data: MonthlyTrend[]
+  monthlyData: MonthlyTrend[]
+  weeklyData: WeeklyTrend[]
 }
 
-export function TrendChart({ data }: TrendChartProps) {
+type TrendData = {
+  label: string
+  income: number
+  expense: number
+  netProfit: number
+}
+
+export function TrendChart({ monthlyData, weeklyData }: TrendChartProps) {
+  const [view, setView] = useState<'monthly' | 'weekly'>('monthly')
+
+  const data: TrendData[] = view === 'monthly'
+    ? monthlyData.map(d => ({ label: d.month, income: d.income, expense: d.expense, netProfit: d.netProfit }))
+    : weeklyData.map(d => ({ label: d.week, income: d.income, expense: d.expense, netProfit: d.netProfit }))
+
   return (
     <Card className="shadow-sm border-slate-200/60 bg-white">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-slate-700">월별 추이</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-semibold text-slate-700">
+            {view === 'monthly' ? '월별' : '주별'} 추이
+          </CardTitle>
+          <Tabs value={view} onValueChange={(v) => setView(v as 'monthly' | 'weekly')}>
+            <TabsList className="h-8">
+              <TabsTrigger value="monthly" className="text-xs px-3 h-6">월별</TabsTrigger>
+              <TabsTrigger value="weekly" className="text-xs px-3 h-6">주별</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[320px] w-full">
@@ -31,7 +57,7 @@ export function TrendChart({ data }: TrendChartProps) {
             <ComposedChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/30" />
               <XAxis
-                dataKey="month"
+                dataKey="label"
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
@@ -45,10 +71,10 @@ export function TrendChart({ data }: TrendChartProps) {
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null
-                  const item = payload[0].payload as MonthlyTrend
+                  const item = payload[0].payload as TrendData
                   return (
                     <div className="rounded-lg border bg-background p-3 shadow-lg">
-                      <p className="font-medium">{item.month}</p>
+                      <p className="font-medium">{item.label}</p>
                       <p className="text-sm text-emerald-500">수입: {formatKRW(item.income)}</p>
                       <p className="text-sm text-rose-400">지출: {formatKRW(item.expense)}</p>
                       <p className="text-sm text-sky-500 font-medium">

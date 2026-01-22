@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     )
   }
 
-  const { metrics, incomeByCategory, expenseByCategory, monthlyTrend, recentTransactions } =
+  const { metrics, incomeByCategory, expenseByCategory, monthlyTrend, weeklyTrend, recentTransactions } =
     result.data
 
   return (
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         </Button>
       </div>
 
-      <TrendChart data={monthlyTrend} />
+      <TrendChart monthlyData={monthlyTrend} weeklyData={weeklyTrend} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard

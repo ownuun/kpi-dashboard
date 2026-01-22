@@ -45,6 +45,13 @@ export interface MonthlyTrend {
   netProfit: number
 }
 
+export interface WeeklyTrend {
+  week: string
+  income: number
+  expense: number
+  netProfit: number
+}
+
 export interface RecentTransaction {
   id: string
   type: TransactionType
@@ -61,6 +68,7 @@ export interface DashboardData {
   incomeByCategory: CategoryBreakdown[]
   expenseByCategory: CategoryBreakdown[]
   monthlyTrend: MonthlyTrend[]
+  weeklyTrend: WeeklyTrend[]
   recentTransactions: RecentTransaction[]
 }
 

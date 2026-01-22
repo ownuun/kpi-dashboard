@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { LogOut, Settings } from 'lucide-react'
 import Link from 'next/link'
+import { MobileNav } from './mobile-nav'
 
 interface HeaderProps {
   user: {
@@ -21,8 +22,9 @@ interface HeaderProps {
 
 export function Header({ user }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/70 bg-white/80 backdrop-blur-sm px-8">
-      <div className="lg:hidden">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/70 bg-white/80 backdrop-blur-sm px-4 md:px-6 lg:px-8">
+      <div className="flex items-center gap-3 lg:hidden">
+        <MobileNav />
         <span className="text-lg font-semibold text-slate-800">KPI Dashboard</span>
       </div>
 
