@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { formatKRW, formatDate } from '@/lib/format'
 import { TransactionFilters } from './transaction-filters'
 import { DeleteButton } from './delete-button'
+import { EditButton } from './edit-button'
 
 interface TransactionsPageProps {
   searchParams: Promise<{
@@ -89,7 +90,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
                   <TableHead>카테고리</TableHead>
                   <TableHead>설명</TableHead>
                   <TableHead className="text-right">금액</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -125,7 +126,10 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
                       {formatKRW(tx.amount)}
                     </TableCell>
                     <TableCell>
-                      <DeleteButton transactionId={tx.id} />
+                      <div className="flex items-center gap-1">
+                        <EditButton transaction={tx} categories={categories} />
+                        <DeleteButton transactionId={tx.id} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
