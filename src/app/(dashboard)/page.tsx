@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     )
   }
 
-  const { metrics, incomeByCategory, expenseByCategory, monthlyTrend, weeklyTrend, recentTransactions } =
+  const { metrics, cumulativeNetProfit, incomeByCategory, expenseByCategory, monthlyTrend, weeklyTrend, recentTransactions } =
     result.data
 
   return (
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
       <TrendChart monthlyData={monthlyTrend} weeklyData={weeklyTrend} />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <MetricCard
           title="이번 달 수입"
           value={metrics.income.total}
@@ -56,6 +56,11 @@ export default async function DashboardPage() {
           value={metrics.netProfit.total}
           changePercent={metrics.netProfit.changePercent}
           type="profit"
+        />
+        <MetricCard
+          title="누적 순이익"
+          value={cumulativeNetProfit}
+          type="cumulative"
         />
       </div>
 

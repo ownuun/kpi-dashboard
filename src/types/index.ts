@@ -65,6 +65,7 @@ export interface RecentTransaction {
 
 export interface DashboardData {
   metrics: DashboardMetrics
+  cumulativeNetProfit: number
   incomeByCategory: CategoryBreakdown[]
   expenseByCategory: CategoryBreakdown[]
   monthlyTrend: MonthlyTrend[]

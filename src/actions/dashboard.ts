@@ -283,18 +283,38 @@ async function getRecentTransactions(
   }))
 }
 
+interface CumulativeRow {
+  type: string
+  total: bigint | null
+}
+
+async function getCumulativeNetProfit(teamId: string): Promise<number> {
+  const results = await prisma.$queryRaw<CumulativeRow[]>`
+    SELECT type, SUM(amount) as total
+    FROM transactions
+    WHERE team_id = ${teamId}
+    GROUP BY type
+  `
+  
+  const income = Number(results.find(r => r.type === 'INCOME')?.total ?? 0)
+  const expense = Number(results.find(r => r.type === 'EXPENSE')?.total ?? 0)
+  return income - expense
+}
+
 async function fetchDashboardData(teamId: string) {
-  const [metrics, categoryBreakdown, monthlyTrend, weeklyTrend, recentTransactions] =
+  const [metrics, categoryBreakdown, monthlyTrend, weeklyTrend, recentTransactions, cumulativeNetProfit] =
     await Promise.all([
       getMetrics(teamId),
       getCategoryBreakdown(teamId),
       getMonthlyTrend(teamId),
       getWeeklyTrend(teamId),
       getRecentTransactions(teamId),
+      getCumulativeNetProfit(teamId),
     ])
 
   return {
     metrics,
+    cumulativeNetProfit,
     incomeByCategory: categoryBreakdown.income,
     expenseByCategory: categoryBreakdown.expense,
     monthlyTrend,
