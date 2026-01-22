@@ -18,7 +18,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">설정</h1>
+      <h1 className="text-2xl font-semibold text-slate-800">설정</h1>
 
       <Card>
         <CardHeader>

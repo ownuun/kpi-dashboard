@@ -42,7 +42,7 @@ export default async function NewTransactionPage() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
-        <h1 className="text-2xl font-bold">거래 추가</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">거래 추가</h1>
       </div>
 
       <Card>

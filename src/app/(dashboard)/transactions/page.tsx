@@ -54,7 +54,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">거래 내역</h1>
+          <h1 className="text-2xl font-semibold text-slate-800">거래 내역</h1>
           <p className="text-sm text-muted-foreground">총 {total}건</p>
         </div>
         <Button asChild>
@@ -80,7 +80,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         </div>
       ) : (
         <>
-          <div className="rounded-lg border">
+          <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>

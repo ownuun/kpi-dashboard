@@ -23,7 +23,7 @@ export default async function DashboardLayout({
       <Sidebar />
       <div className="lg:pl-64">
         <Header user={session.user} />
-        <main className="p-8 max-w-7xl mx-auto">{children}</main>
+        <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">{children}</main>
       </div>
     </div>
   )

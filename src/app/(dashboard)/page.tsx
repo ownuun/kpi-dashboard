@@ -25,7 +25,7 @@ export default async function DashboardPage() {
     result.data
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-800">대시보드</h1>
         <Button asChild>
@@ -36,7 +36,9 @@ export default async function DashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <TrendChart data={monthlyTrend} />
+
+      <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
           title="이번 달 수입"
           value={metrics.income.total}
@@ -57,12 +59,9 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <TrendChart data={monthlyTrend} />
-        <div className="grid gap-6">
-          <CategoryDonut title="수입 카테고리" data={incomeByCategory} />
-          <CategoryDonut title="지출 카테고리" data={expenseByCategory} />
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <CategoryDonut title="수입 카테고리" data={incomeByCategory} />
+        <CategoryDonut title="지출 카테고리" data={expenseByCategory} />
       </div>
 
       <RecentTransactions transactions={recentTransactions} />
