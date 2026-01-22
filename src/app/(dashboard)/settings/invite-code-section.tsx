@@ -56,7 +56,7 @@ export function InviteCodeSection({ inviteCode: initialCode }: InviteCodeSection
         <Input
           readOnly
           value={inviteUrl}
-          className="font-mono text-sm"
+          className="font-mono text-xs sm:text-sm min-w-0"
         />
         <Button
           variant="outline"
