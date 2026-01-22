@@ -3,8 +3,9 @@ import Google from 'next-auth/providers/google'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const { handlers, auth: uncachedAuth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
 
   providers: [
@@ -70,16 +71,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.teamId = session.teamId
       }
 
-      if (token.userId && !token.teamId) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.userId as string },
-          select: { teamId: true },
-        })
-        if (dbUser?.teamId) {
-          token.teamId = dbUser.teamId
-        }
-      }
-
       return token
     },
 
@@ -95,6 +86,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 })
+
+// Cache auth() to deduplicate calls within the same request
+export const auth = cache(uncachedAuth)
+export { handlers, signIn, signOut }
 
 declare module 'next-auth' {
   interface Session {

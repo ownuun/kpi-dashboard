@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react'
 import { getDashboardData } from '@/actions/dashboard'
 import { Button } from '@/components/ui/button'
 import { MetricCard } from '@/components/dashboard/metric-card'
-import { TrendChart } from '@/components/dashboard/trend-chart'
+import { TrendChart } from '@/components/dashboard/trend-chart-lazy'
 import { CategoryDonut } from '@/components/dashboard/category-donut'
 import { RecentTransactions } from '@/components/dashboard/recent-transactions'
 
