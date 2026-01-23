@@ -68,6 +68,21 @@ model User {
   sessions     Session[]
   transactions Transaction[] @relation("CreatedBy")
 
+  // 링크 공유 관련
+  linkTags      LinkTag[]
+  personalLinks Link[]    @relation("PersonalLinks")
+  createdLinks  Link[]    @relation("CreatedLinks")
+
+  // AI 자동 태그 설정
+  aiProvider       String? @map("ai_provider")
+  aiApiKey         String? @map("ai_api_key") @db.Text
+  aiModel          String? @map("ai_model")
+  aiAutoTagEnabled Boolean @default(true) @map("ai_auto_tag_enabled")
+
+  // 링크 저장 설정 (이전 선택 유지)
+  linkSavePersonal Boolean @default(true) @map("link_save_personal")
+  linkSaveTeam     Boolean @default(false) @map("link_save_team")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -82,6 +97,10 @@ model Team {
   users        User[]
   categories   Category[]
   transactions Transaction[]
+
+  // 링크 공유 관련
+  linkTags LinkTag[]
+  links    Link[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -136,4 +155,91 @@ model Transaction {
   @@index([teamId, categoryId])
   @@index([teamId, type, date])
   @@map("transactions")
+}
+
+// ============================================
+// 링크 공유 모델
+// ============================================
+
+enum LinkOwnerType {
+  PERSONAL
+  TEAM
+}
+
+// 태그 모델
+model LinkTag {
+  id        String        @id @default(cuid())
+  name      String
+  color     String        @default("#3B82F6")
+  ownerType LinkOwnerType @map("owner_type")
+
+  // 소유자 (PERSONAL일 때 userId 사용, TEAM일 때 teamId 사용)
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  teamId String? @map("team_id")
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // 태그가 붙은 링크들 (다대다)
+  links LinkTagOnLink[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 같은 소유자 내에서 태그 이름 중복 방지
+  @@unique([userId, name, ownerType])
+  @@unique([teamId, name, ownerType])
+  @@index([userId, ownerType])
+  @@index([teamId, ownerType])
+  @@map("link_tags")
+}
+
+// 링크 모델
+model Link {
+  id          String        @id @default(cuid())
+  url         String
+  title       String
+  description String?       @db.Text
+  favicon     String?
+  rating      Int           @default(0)
+  ownerType   LinkOwnerType @map("owner_type")
+
+  // 소유자
+  userId String? @map("user_id")
+  user   User?   @relation("PersonalLinks", fields: [userId], references: [id], onDelete: Cascade)
+
+  teamId String? @map("team_id")
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // 생성자 (팀 링크의 경우 누가 추가했는지)
+  createdById String @map("created_by_id")
+  createdBy   User   @relation("CreatedLinks", fields: [createdById], references: [id])
+
+  // 태그들 (다대다)
+  tags LinkTagOnLink[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, ownerType])
+  @@index([teamId, ownerType])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("links")
+}
+
+// 링크-태그 연결 테이블 (다대다)
+model LinkTagOnLink {
+  id     String  @id @default(cuid())
+  linkId String  @map("link_id")
+  link   Link    @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  tagId  String  @map("tag_id")
+  tag    LinkTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([linkId, tagId])
+  @@index([linkId])
+  @@index([tagId])
+  @@map("link_tag_on_link")
 }
