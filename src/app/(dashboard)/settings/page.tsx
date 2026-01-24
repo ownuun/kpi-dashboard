@@ -1,9 +1,13 @@
+import { auth } from '@/lib/auth'
 import { getTeam } from '@/actions/teams'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { InviteCodeSection } from './invite-code-section'
+import { RemoveMemberButton } from './remove-member-button'
 
 export default async function SettingsPage() {
+  const session = await auth()
   const result = await getTeam()
 
   if (!result.success) {
@@ -58,23 +62,39 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {team.users.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
-              >
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={user.image || ''} alt={user.name || ''} />
-                  <AvatarFallback>
-                    {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <p className="font-medium">{user.name || '이름 없음'}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
+            {team.users.map((user) => {
+              const isCurrentUser = user.id === session?.user?.id
+              const currentUserIsAdmin = team.users.find(u => u.id === session?.user?.id)?.role === 'ADMIN'
+              const canRemove = currentUserIsAdmin && !isCurrentUser && user.role === 'MEMBER'
+              
+              return (
+                <div
+                  key={user.id}
+                  className="flex items-center gap-3 rounded-lg border p-3"
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarImage src={user.image || ''} alt={user.name || ''} />
+                    <AvatarFallback>
+                      {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium truncate">{user.name || '이름 없음'}</p>
+                      {user.role === 'ADMIN' && (
+                        <Badge variant="secondary" className="text-xs shrink-0">관리자</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  {canRemove && (
+                    <div className="shrink-0">
+                      <RemoveMemberButton memberId={user.id} memberName={user.name} />
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>

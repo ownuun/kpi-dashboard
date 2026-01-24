@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ============================================
@@ -54,6 +55,11 @@ model VerificationToken {
 // 비즈니스 모델
 // ============================================
 
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -61,12 +67,14 @@ model User {
   image         String?
   emailVerified DateTime? @map("email_verified")
 
-  teamId String? @map("team_id")
-  team   Team?   @relation(fields: [teamId], references: [id])
+  teamId String?  @map("team_id")
+  team   Team?    @relation("TeamMembers", fields: [teamId], references: [id])
+  role   UserRole @default(MEMBER)
 
   accounts     Account[]
   sessions     Session[]
   transactions Transaction[] @relation("CreatedBy")
+  createdTeams Team[]        @relation("TeamCreator")
 
   // 링크 공유 관련
   linkTags      LinkTag[]
@@ -94,13 +102,20 @@ model Team {
   name       String
   inviteCode String @unique @default(cuid()) @map("invite_code")
 
-  users        User[]
+  // 팀 생성자 (관리자) - 기존 팀은 null 가능
+  creatorId String? @map("creator_id")
+  creator   User?   @relation("TeamCreator", fields: [creatorId], references: [id])
+
+  users        User[]        @relation("TeamMembers")
   categories   Category[]
   transactions Transaction[]
 
   // 링크 공유 관련
   linkTags LinkTag[]
   links    Link[]
+
+  // 템플릿 시스템
+  enabledTemplates TeamTemplate[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -242,4 +257,68 @@ model LinkTagOnLink {
   @@index([linkId])
   @@index([tagId])
   @@map("link_tag_on_link")
+}
+
+// ============================================
+// 템플릿 시스템
+// ============================================
+
+// 템플릿 카테고리 (매출관리, 인사관리 등)
+model TemplateCategory {
+  id          String  @id @default(cuid())
+  key         String  @unique // 'sales', 'hr', 'finance' 등
+  name        String // 표시 이름
+  description String?
+  icon        String // Lucide 아이콘 이름
+  order       Int     @default(0) // 전역 순서
+
+  templates Template[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("template_categories")
+}
+
+// 템플릿 (대시보드, 거래, 카테고리 등)
+model Template {
+  id           String  @id @default(cuid())
+  key          String  @unique // 'dashboard', 'transactions' 등
+  name         String // 표시 이름
+  description  String? // 템플릿 설명
+  icon         String // Lucide 아이콘 이름
+  route        String // 라우트 경로
+  previewImage String? @map("preview_image") // 미리보기 이미지 경로
+  order        Int     @default(0) // 카테고리 내 순서
+  isDefault    Boolean @default(false) // 기본 활성화 여부 (매출관리는 true)
+
+  categoryId String           @map("category_id")
+  category   TemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // 이 템플릿을 활성화한 팀들
+  teamTemplates TeamTemplate[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("templates")
+}
+
+// 팀별 활성화된 템플릿
+model TeamTemplate {
+  id         String @id @default(cuid())
+  teamId     String @map("team_id")
+  templateId String @map("template_id")
+
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  // 팀별 커스터마이징 (선택)
+  customOrder Int?    @map("custom_order") // 순서 오버라이드
+  customName  String? @map("custom_name") // 이름 오버라이드
+
+  enabledAt DateTime @default(now()) @map("enabled_at")
+
+  @@unique([teamId, templateId])
+  @@map("team_templates")
 }

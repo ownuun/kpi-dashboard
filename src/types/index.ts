@@ -1,5 +1,7 @@
 import { TransactionType } from '@prisma/client'
 
+export type UserRole = 'ADMIN' | 'MEMBER'
+
 // ============================================
 // 공통 타입
 // ============================================
@@ -136,6 +138,7 @@ export interface TeamWithMembers {
     name: string | null
     email: string
     image: string | null
+    role: UserRole
   }[]
   _count: {
     users: number

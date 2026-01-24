@@ -9,6 +9,7 @@ import { TransactionType } from '@prisma/client'
 
 const createTeamSchema = z.object({
   name: z.string().min(2, '팀 이름은 2자 이상이어야 합니다').max(50),
+  secretKey: z.string().min(1, '시크릿 키를 입력해주세요'),
 })
 
 const DEFAULT_INCOME_CATEGORIES = [
@@ -45,6 +46,28 @@ async function seedTeamCategories(teamId: string) {
   })
 }
 
+async function seedDefaultTemplates(teamId: string) {
+  const salesCategory = await prisma.templateCategory.findUnique({
+    where: { key: 'sales' },
+  })
+
+  if (!salesCategory) return
+
+  const defaultTemplates = await prisma.template.findMany({
+    where: { isDefault: true },
+  })
+
+  if (defaultTemplates.length === 0) return
+
+  await prisma.teamTemplate.createMany({
+    data: defaultTemplates.map((template) => ({
+      teamId,
+      templateId: template.id,
+    })),
+    skipDuplicates: true,
+  })
+}
+
 export async function createTeam(
   formData: FormData
 ): Promise<ActionResult<{ teamId: string; inviteCode: string }>> {
@@ -63,27 +86,41 @@ export async function createTeam(
       return { success: false, error: '이미 팀에 소속되어 있습니다' }
     }
 
-    const raw = { name: formData.get('name') as string }
+    const raw = {
+      name: formData.get('name') as string,
+      secretKey: formData.get('secretKey') as string,
+    }
     const parsed = createTeamSchema.safeParse(raw)
 
     if (!parsed.success) {
       return { success: false, error: parsed.error.issues[0].message }
     }
 
+    // 시크릿 키 검증
+    const validSecretKey = process.env.TEAM_CREATE_SECRET
+    if (!validSecretKey || parsed.data.secretKey !== validSecretKey) {
+      return { success: false, error: '유효하지 않은 시크릿 키입니다' }
+    }
+
     const team = await prisma.$transaction(async (tx) => {
       const newTeam = await tx.team.create({
-        data: { name: parsed.data.name },
+        data: {
+          name: parsed.data.name,
+          creatorId: session.user.id,
+        },
       })
 
+      // 팀 생성자는 ADMIN으로 설정
       await tx.user.update({
         where: { id: session.user.id },
-        data: { teamId: newTeam.id },
+        data: { teamId: newTeam.id, role: 'ADMIN' },
       })
 
       return newTeam
     })
 
     await seedTeamCategories(team.id)
+    await seedDefaultTemplates(team.id)
 
     return {
       success: true,
@@ -123,7 +160,7 @@ export async function joinTeam(
 
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { teamId: team.id },
+      data: { teamId: team.id, role: 'MEMBER' },
     })
 
     return {
@@ -147,7 +184,7 @@ export async function getTeam(): Promise<ActionResult<TeamWithMembers>> {
       where: { id: session.user.teamId },
       include: {
         users: {
-          select: { id: true, name: true, email: true, image: true },
+          select: { id: true, name: true, email: true, image: true, role: true },
           orderBy: { createdAt: 'asc' },
         },
         _count: {
@@ -198,4 +235,49 @@ export async function joinTeamAndUpdateSession(
   }
   
   return result
+}
+
+export async function removeMember(
+  memberId: string
+): Promise<ActionResult<void>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id || !session?.user?.teamId) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true, teamId: true },
+    })
+
+    if (currentUser?.role !== 'ADMIN') {
+      return { success: false, error: '관리자만 멤버를 삭제할 수 있습니다' }
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: memberId },
+      select: { role: true, teamId: true },
+    })
+
+    if (!targetUser || targetUser.teamId !== currentUser.teamId) {
+      return { success: false, error: '해당 멤버를 찾을 수 없습니다' }
+    }
+
+    if (targetUser.role === 'ADMIN') {
+      return { success: false, error: '관리자는 삭제할 수 없습니다' }
+    }
+
+    await prisma.user.update({
+      where: { id: memberId },
+      data: { teamId: null, role: 'MEMBER' },
+    })
+
+    revalidatePath('/settings')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    console.error('removeMember error:', error)
+    return { success: false, error: '멤버 삭제에 실패했습니다' }
+  }
 }

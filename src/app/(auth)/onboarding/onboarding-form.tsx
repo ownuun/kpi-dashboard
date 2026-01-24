@@ -27,6 +27,7 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
   const { update } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [teamName, setTeamName] = useState('')
+  const [secretKey, setSecretKey] = useState('')
   const [inviteCode, setInviteCode] = useState('')
 
   const handleCreateTeam = async (e: React.FormEvent) => {
@@ -35,11 +36,16 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
       toast.error('팀 이름을 입력해주세요')
       return
     }
+    if (!secretKey.trim()) {
+      toast.error('시크릿 키를 입력해주세요')
+      return
+    }
 
     setIsLoading(true)
     try {
       const formData = new FormData()
       formData.set('name', teamName)
+      formData.set('secretKey', secretKey)
       const result = await createTeam(formData)
 
       if (result.success) {
@@ -107,6 +113,17 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
                   placeholder="예: 우리 회사"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secretKey">시크릿 키</Label>
+                <Input
+                  id="secretKey"
+                  type="password"
+                  placeholder="발급받은 시크릿 키 입력"
+                  value={secretKey}
+                  onChange={(e) => setSecretKey(e.target.value)}
                   disabled={isLoading}
                 />
               </div>
