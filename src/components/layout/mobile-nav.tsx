@@ -64,9 +64,7 @@ function MobileNavCategory({
       >
         <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
           {category.items.map((item) => {
-            const isActive = item.href === '/' 
-              ? pathname === '/' 
-              : pathname.startsWith(item.href)
+            const isActive = pathname === item.href
             
             return (
               <Link

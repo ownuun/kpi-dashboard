@@ -5,6 +5,7 @@ import {
   Settings,
   Puzzle,
   TrendingUp,
+  Link2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -35,6 +36,16 @@ export const navigationConfig: NavCategory[] = [
       { key: 'dashboard', label: '대시보드', href: '/', icon: LayoutDashboard },
       { key: 'transactions', label: '거래', href: '/transactions', icon: Receipt },
       { key: 'categories', label: '카테고리', href: '/categories', icon: Tags },
+    ],
+  },
+  {
+    key: 'links',
+    label: '링크 공유',
+    icon: Link2,
+    defaultOpen: true,
+    isTemplate: true,
+    items: [
+      { key: 'links-main', label: '링크', href: '/links', icon: Link2 },
     ],
   },
   {

@@ -4,20 +4,26 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
-import type { ChromeBookmarkNode, FolderToTagMapping, LinkOwnerType } from '@/types/links'
+import type { BookmarkImportNode, BookmarkImportResult, LinkOwnerType } from '@/types/links'
 
-interface ImportResult {
-  imported: number
-  skipped: number
-  tagsCreated: number
+interface FlatBookmark {
+  url: string
+  title: string
+  folderPath: string[]
 }
 
-function extractBookmarks(
-  node: ChromeBookmarkNode,
-  parentPath: string = ''
-): Array<{ url: string; title: string; folderPath: string }> {
-  const results: Array<{ url: string; title: string; folderPath: string }> = []
-  const currentPath = parentPath ? `${parentPath}/${node.title}` : node.title
+interface FolderRecord {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+function extractAllBookmarks(
+  node: BookmarkImportNode,
+  parentPath: string[] = []
+): FlatBookmark[] {
+  const results: FlatBookmark[] = []
+  const currentPath = node.title ? [...parentPath, node.title] : parentPath
 
   if (node.url) {
     results.push({
@@ -29,54 +35,37 @@ function extractBookmarks(
 
   if (node.children) {
     for (const child of node.children) {
-      results.push(...extractBookmarks(child, currentPath))
+      results.push(...extractAllBookmarks(child, currentPath))
     }
   }
 
   return results
 }
 
-function getFolderPaths(node: ChromeBookmarkNode, parentPath: string = ''): string[] {
-  const paths: string[] = []
-  const currentPath = parentPath ? `${parentPath}/${node.title}` : node.title
+function extractAllFolderPaths(
+  node: BookmarkImportNode,
+  parentPath: string[] = []
+): string[][] {
+  const paths: string[][] = []
+  const currentPath = node.title ? [...parentPath, node.title] : parentPath
 
   if (node.children && node.children.length > 0) {
-    paths.push(currentPath)
+    if (node.title) {
+      paths.push(currentPath)
+    }
     for (const child of node.children) {
-      paths.push(...getFolderPaths(child, currentPath))
+      paths.push(...extractAllFolderPaths(child, currentPath))
     }
   }
 
   return paths
 }
 
-export async function getBookmarkFolderPaths(
-  bookmarks: ChromeBookmarkNode[]
-): Promise<ActionResult<string[]>> {
-  try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
-
-    const allPaths: string[] = []
-    for (const root of bookmarks) {
-      allPaths.push(...getFolderPaths(root))
-    }
-
-    const uniquePaths = [...new Set(allPaths)].sort()
-    return { success: true, data: uniquePaths }
-  } catch (error) {
-    console.error('getBookmarkFolderPaths error:', error)
-    return { success: false, error: '폴더 경로 추출에 실패했습니다' }
-  }
-}
-
 export async function importChromeBookmarks(
-  bookmarks: ChromeBookmarkNode[],
+  bookmarks: BookmarkImportNode[],
   ownerType: LinkOwnerType,
-  folderToTagMapping: FolderToTagMapping[]
-): Promise<ActionResult<ImportResult>> {
+  rootFolderName?: string
+): Promise<ActionResult<BookmarkImportResult>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -87,104 +76,171 @@ export async function importChromeBookmarks(
       return { success: false, error: '팀에 소속되어 있지 않습니다' }
     }
 
-    const allBookmarks: Array<{ url: string; title: string; folderPath: string }> = []
+    const userId = session.user.id
+    const teamId = session.user.teamId
+    const rootPath = rootFolderName ? [rootFolderName] : []
+
+    const allFolderPaths: string[][] = []
+    const allBookmarks: FlatBookmark[] = []
+
     for (const root of bookmarks) {
-      allBookmarks.push(...extractBookmarks(root))
+      const folderPaths = extractAllFolderPaths(root, rootPath)
+      allFolderPaths.push(...folderPaths)
+
+      const flatBookmarks = extractAllBookmarks(root, rootPath)
+      allBookmarks.push(...flatBookmarks)
     }
 
-    const tagMap = new Map<string, string>()
-    let tagsCreated = 0
-
-    for (const mapping of folderToTagMapping) {
-      const existingTagWhere =
-        ownerType === 'PERSONAL'
-          ? { userId: session.user.id, name: mapping.tagName, ownerType: 'PERSONAL' as const }
-          : { teamId: session.user.teamId!, name: mapping.tagName, ownerType: 'TEAM' as const }
-
-      let tag = await prisma.linkTag.findFirst({ where: existingTagWhere })
-
-      if (!tag) {
-        const createData =
-          ownerType === 'PERSONAL'
-            ? {
-                name: mapping.tagName,
-                color: mapping.tagColor || '#3B82F6',
-                ownerType: 'PERSONAL' as const,
-                userId: session.user.id,
-              }
-            : {
-                name: mapping.tagName,
-                color: mapping.tagColor || '#3B82F6',
-                ownerType: 'TEAM' as const,
-                teamId: session.user.teamId!,
-              }
-
-        tag = await prisma.linkTag.create({ data: createData })
-        tagsCreated++
-      }
-
-      tagMap.set(mapping.folderPath, tag.id)
+    if (rootFolderName) {
+      allFolderPaths.unshift([rootFolderName])
     }
 
-    let imported = 0
-    let skipped = 0
+    const defaultFolderPath = rootPath.length > 0 ? rootPath : ['가져온 북마크']
 
-    for (const bookmark of allBookmarks) {
+    const validBookmarks = allBookmarks.filter((b) => {
       try {
-        new URL(bookmark.url)
+        new URL(b.url)
+        return !b.url.startsWith('javascript:') && !b.url.startsWith('chrome:')
       } catch {
-        skipped++
-        continue
+        return false
       }
+    })
 
-      if (bookmark.url.startsWith('javascript:') || bookmark.url.startsWith('chrome:')) {
-        skipped++
-        continue
+    const hasOrphanBookmarks = validBookmarks.some((b) => b.folderPath.length === 0)
+    if (hasOrphanBookmarks && !allFolderPaths.some((p) => p.join('/') === defaultFolderPath.join('/'))) {
+      allFolderPaths.push(defaultFolderPath)
+    }
+
+    const uniqueFolderPaths = [...new Set(allFolderPaths.map((p) => p.join('/')))]
+      .map((p) => p.split('/'))
+      .sort((a, b) => a.length - b.length)
+
+    const folderCache = new Map<string, string>()
+    let foldersCreated = 0
+
+    const existingFolders: FolderRecord[] = await prisma.linkFolder.findMany({
+      where: ownerType === 'PERSONAL'
+        ? { userId, ownerType: 'PERSONAL' }
+        : { teamId: teamId!, ownerType: 'TEAM' },
+      select: { id: true, name: true, parentId: true },
+    })
+
+    const parentIdToChildren = new Map<string | null, FolderRecord[]>()
+    
+    for (const folder of existingFolders) {
+      const children = parentIdToChildren.get(folder.parentId) || []
+      children.push(folder)
+      parentIdToChildren.set(folder.parentId, children)
+    }
+
+    function buildFolderPath(folderId: string, visited = new Set<string>()): string[] {
+      if (visited.has(folderId)) return []
+      visited.add(folderId)
+      
+      const folder = existingFolders.find((f) => f.id === folderId)
+      if (!folder) return []
+      
+      if (folder.parentId) {
+        return [...buildFolderPath(folder.parentId, visited), folder.name]
       }
+      return [folder.name]
+    }
 
-      const tagIds: string[] = []
-      for (const [folderPath, tagId] of tagMap.entries()) {
-        if (bookmark.folderPath.startsWith(folderPath) || bookmark.folderPath === folderPath) {
-          tagIds.push(tagId)
+    for (const folder of existingFolders) {
+      const path = buildFolderPath(folder.id)
+      if (path.length > 0) {
+        folderCache.set(path.join('/'), folder.id)
+      }
+    }
+
+    for (const folderPath of uniqueFolderPaths) {
+      const pathKey = folderPath.join('/')
+      if (folderCache.has(pathKey)) continue
+
+      let parentId: string | null = null
+      
+      for (let i = 0; i < folderPath.length; i++) {
+        const partialPath = folderPath.slice(0, i + 1)
+        const partialKey = partialPath.join('/')
+
+        if (folderCache.has(partialKey)) {
+          parentId = folderCache.get(partialKey)!
+          continue
         }
+
+        const name = folderPath[i]
+        let newFolder: { id: string }
+
+        if (ownerType === 'PERSONAL') {
+          newFolder = await prisma.linkFolder.create({
+            data: { name, ownerType: 'PERSONAL', userId, parentId },
+          })
+        } else {
+          newFolder = await prisma.linkFolder.create({
+            data: { name, ownerType: 'TEAM', teamId: teamId!, parentId },
+          })
+        }
+
+        folderCache.set(partialKey, newFolder.id)
+        parentId = newFolder.id
+        foldersCreated++
+      }
+    }
+
+    const urls = validBookmarks.map((b) => b.url)
+    const existingLinks = await prisma.link.findMany({
+      where: ownerType === 'PERSONAL'
+        ? { url: { in: urls }, userId, ownerType: 'PERSONAL' }
+        : { url: { in: urls }, teamId: teamId!, ownerType: 'TEAM' },
+      select: { url: true },
+    })
+    const existingUrls = new Set(existingLinks.map((l) => l.url))
+
+    const newBookmarks = validBookmarks.filter((b) => !existingUrls.has(b.url))
+    
+    const linksToCreate = newBookmarks.map((bookmark) => {
+      const folderPath = bookmark.folderPath.length > 0 ? bookmark.folderPath : defaultFolderPath
+      const folderId = folderCache.get(folderPath.join('/'))
+
+      if (!folderId) {
+        return null
       }
 
-      const existingLinkWhere =
-        ownerType === 'PERSONAL'
-          ? { url: bookmark.url, userId: session.user.id, ownerType: 'PERSONAL' as const }
-          : { url: bookmark.url, teamId: session.user.teamId!, ownerType: 'TEAM' as const }
+      return ownerType === 'PERSONAL'
+        ? {
+            url: bookmark.url,
+            title: bookmark.title || bookmark.url,
+            ownerType: 'PERSONAL' as const,
+            folderId,
+            userId,
+            createdById: userId,
+          }
+        : {
+            url: bookmark.url,
+            title: bookmark.title || bookmark.url,
+            ownerType: 'TEAM' as const,
+            folderId,
+            teamId: teamId!,
+            createdById: userId,
+          }
+    }).filter((l): l is NonNullable<typeof l> => l !== null)
 
-      const existingLink = await prisma.link.findFirst({ where: existingLinkWhere })
-
-      if (existingLink) {
-        skipped++
-        continue
-      }
-
-      const createData = {
-        url: bookmark.url,
-        title: bookmark.title || bookmark.url,
-        ownerType: ownerType as 'PERSONAL' | 'TEAM',
-        createdById: session.user.id,
-        ...(ownerType === 'PERSONAL'
-          ? { userId: session.user.id }
-          : { teamId: session.user.teamId! }),
-        tags:
-          tagIds.length > 0
-            ? { create: tagIds.map((tagId) => ({ tagId })) }
-            : undefined,
-      }
-
-      await prisma.link.create({ data: createData })
-      imported++
+    if (linksToCreate.length > 0) {
+      await prisma.link.createMany({
+        data: linksToCreate,
+        skipDuplicates: true,
+      })
     }
 
     revalidatePath('/links')
-    revalidatePath('/links/tags')
 
     return {
       success: true,
-      data: { imported, skipped, tagsCreated },
+      data: {
+        foldersCreated,
+        linksCreated: linksToCreate.length,
+        errors: [],
+      },
     }
   } catch (error) {
     console.error('importChromeBookmarks error:', error)

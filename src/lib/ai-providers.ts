@@ -85,59 +85,59 @@ export function getAuthHeader(
   return { Authorization: `Bearer ${apiKey}` }
 }
 
-export function buildTagSelectionPrompt(
+export function buildFolderSelectionPrompt(
   url: string,
   title: string,
   description: string | null,
-  tags: Array<{ id: string; name: string }>
+  folders: Array<{ id: string; name: string; path: string }>
 ): string {
-  return `당신은 링크 분류 전문가입니다. 주어진 링크에 적합한 태그를 기존 태그 목록에서 선택해주세요.
+  return `당신은 링크 분류 전문가입니다. 주어진 링크에 가장 적합한 폴더를 기존 폴더 목록에서 선택해주세요.
 
 ## 링크 정보
 - URL: ${url}
 - 제목: ${title}
 - 설명: ${description || '없음'}
 
-## 사용 가능한 태그 (이 중에서만 선택)
-${tags.map((t) => `- ${t.name} (id: ${t.id})`).join('\n')}
+## 사용 가능한 폴더 (이 중에서 하나만 선택)
+${folders.map((f) => `- ${f.path} (id: ${f.id})`).join('\n')}
 
 ## 규칙
-1. 반드시 위 태그 목록에서만 선택하세요
-2. 1~5개의 태그를 선택하세요
-3. 가장 관련성 높은 태그를 우선 선택하세요
-4. 적합한 태그가 없으면 빈 배열을 반환하세요
+1. 반드시 위 폴더 목록에서 하나만 선택하세요
+2. 링크 내용과 가장 관련 있는 폴더를 선택하세요
+3. 하위 폴더가 있다면 가장 구체적인 폴더를 선택하세요
+4. 적합한 폴더가 없으면 가장 상위 폴더를 선택하세요
 
 ## 응답 형식 (JSON만 출력)
 {
-  "tagIds": ["id1", "id2"],
+  "folderId": "선택한 폴더 id",
   "reason": "선택 이유 (한 문장)"
 }`
 }
 
-export function parseAIResponse(
+export function parseAIFolderResponse(
   content: string,
-  availableTags: Array<{ id: string; name: string }>
-): { tagIds: string[]; tagNames: string[]; reason: string } {
+  availableFolders: Array<{ id: string; name: string; path: string }>
+): { folderId: string | null; folderName: string; folderPath: string; reason: string } {
   try {
     const jsonMatch = content.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      return { tagIds: [], tagNames: [], reason: 'AI 응답 파싱 실패' }
+      return { folderId: null, folderName: '', folderPath: '', reason: 'AI 응답 파싱 실패' }
     }
 
     const parsed = JSON.parse(jsonMatch[0])
-    const validTagIds = (parsed.tagIds || []).filter((id: string) =>
-      availableTags.some((t) => t.id === id)
-    )
-    const tagNames = validTagIds
-      .map((id: string) => availableTags.find((t) => t.id === id)?.name)
-      .filter(Boolean) as string[]
+    const folder = availableFolders.find((f) => f.id === parsed.folderId)
+
+    if (!folder) {
+      return { folderId: null, folderName: '', folderPath: '', reason: 'AI가 선택한 폴더가 유효하지 않습니다' }
+    }
 
     return {
-      tagIds: validTagIds,
-      tagNames,
+      folderId: folder.id,
+      folderName: folder.name,
+      folderPath: folder.path,
       reason: parsed.reason || '',
     }
   } catch {
-    return { tagIds: [], tagNames: [], reason: 'AI 응답 파싱 실패' }
+    return { folderId: null, folderName: '', folderPath: '', reason: 'AI 응답 파싱 실패' }
   }
 }

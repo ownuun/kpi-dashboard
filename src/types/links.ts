@@ -1,27 +1,56 @@
-// LinkOwnerType will be available after running: npx prisma generate
-// For now, define the enum locally to allow TypeScript to work
+// ============================================
+// 링크 공유 타입 (v3.0 - 폴더 기반)
+// ============================================
+
 export type LinkOwnerType = 'PERSONAL' | 'TEAM'
 
 // ============================================
-// 태그 타입
+// 폴더 타입
 // ============================================
 
-export interface LinkTagBasic {
+export interface LinkFolderBasic {
   id: string
   name: string
-  color: string
+  icon: string | null
   ownerType: LinkOwnerType
+  parentId: string | null
+  sortOrder: number
 }
 
-export interface LinkTagWithCount extends LinkTagBasic {
+export interface LinkFolderWithChildren extends LinkFolderBasic {
+  children: LinkFolderWithChildren[]
   _count: {
     links: number
   }
 }
 
+export interface LinkFolderTree {
+  personal: LinkFolderWithChildren[]
+  team: LinkFolderWithChildren[]
+  hasTeam: boolean
+}
+
+export interface CreateFolderInput {
+  name: string
+  icon?: string
+  parentId?: string | null
+  ownerType: LinkOwnerType
+}
+
+export interface UpdateFolderInput {
+  name?: string
+  icon?: string
+}
+
 // ============================================
 // 링크 타입
 // ============================================
+
+export interface LinkViewUser {
+  id: string
+  name: string | null
+  image: string | null
+}
 
 export interface LinkWithDetails {
   id: string
@@ -31,12 +60,15 @@ export interface LinkWithDetails {
   favicon: string | null
   rating: number
   ownerType: LinkOwnerType
-  tags: LinkTagBasic[]
+  sortOrder: number
+  folder: LinkFolderBasic
   createdBy: {
     id: string
     name: string | null
     image: string | null
   }
+  viewedBy: LinkViewUser[]
+  sourceTeamLinkId: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -45,22 +77,22 @@ export interface CreateLinkInput {
   url: string
   title: string
   description?: string
-  favicon?: string
+  favicon?: string | null
   rating?: number
   ownerType: LinkOwnerType
-  tagIds: string[]
+  folderId: string
 }
 
 export interface UpdateLinkInput {
   title?: string
-  description?: string
+  description?: string | null
   rating?: number
-  tagIds?: string[]
+  folderId?: string
 }
 
 export interface LinkFilters {
   ownerType?: LinkOwnerType
-  tagIds?: string[]
+  folderId?: string
   rating?: number
   search?: string
   startDate?: Date
@@ -76,12 +108,13 @@ export interface PaginatedLinks {
 }
 
 // ============================================
-// AI 태그 추천
+// AI 폴더 추천
 // ============================================
 
-export interface AITagResult {
-  tagIds: string[]
-  tagNames: string[]
+export interface AIFolderResult {
+  folderId: string
+  folderName: string
+  folderPath: string
   confidence: number
   reason: string
 }
@@ -110,17 +143,16 @@ export interface AIProviderConfig {
 // Chrome 북마크 가져오기
 // ============================================
 
-export interface ChromeBookmarkNode {
-  id: string
+export interface BookmarkImportNode {
   title: string
   url?: string
-  children?: ChromeBookmarkNode[]
+  children?: BookmarkImportNode[]
 }
 
-export interface FolderToTagMapping {
-  folderPath: string
-  tagName: string
-  tagColor?: string
+export interface BookmarkImportResult {
+  foldersCreated: number
+  linksCreated: number
+  errors: string[]
 }
 
 // ============================================
@@ -136,7 +168,7 @@ export interface AISettings {
   provider: AIProvider | null
   apiKey: string | null
   model: string | null
-  autoTagEnabled: boolean
+  autoFolderEnabled: boolean
 }
 
 // ============================================

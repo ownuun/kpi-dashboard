@@ -5,21 +5,50 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { ActionResult } from '@/types'
-import type { AITagResult, AIProvider, LinkOwnerType } from '@/types/links'
-import { AI_PROVIDERS, getAuthHeader, buildTagSelectionPrompt, parseAIResponse } from '@/lib/ai-providers'
+import type { AIFolderResult, AIProvider, LinkOwnerType } from '@/types/links'
+import { AI_PROVIDERS, getAuthHeader, buildFolderSelectionPrompt, parseAIFolderResponse } from '@/lib/ai-providers'
 
 const aiSettingsSchema = z.object({
   provider: z.enum(['cerebras', 'groq', 'gemini', 'openrouter', 'together', 'cohere', 'glm', 'mistral']),
   apiKey: z.string().min(1, 'API 키를 입력해주세요'),
   model: z.string().optional(),
-  autoTagEnabled: z.boolean().optional(),
+  autoFolderEnabled: z.boolean().optional(),
 })
 
-export async function suggestTags(
+interface FolderWithPath {
+  id: string
+  name: string
+  path: string
+}
+
+interface FolderRecord {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+function buildFolderPath(
+  folderId: string,
+  foldersMap: Map<string, FolderRecord>
+): string {
+  const parts: string[] = []
+  let currentId: string | null = folderId
+
+  while (currentId) {
+    const folder = foldersMap.get(currentId)
+    if (!folder) break
+    parts.unshift(folder.name)
+    currentId = folder.parentId
+  }
+
+  return parts.join(' > ')
+}
+
+export async function suggestFolder(
   url: string,
   title: string,
   ownerType: LinkOwnerType
-): Promise<ActionResult<AITagResult>> {
+): Promise<ActionResult<AIFolderResult>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -40,27 +69,36 @@ export async function suggestTags(
       return { success: false, error: '지원하지 않는 AI Provider입니다' }
     }
 
-    const tagsWhere =
+    const foldersWhere =
       ownerType === 'PERSONAL'
         ? { userId: session.user.id, ownerType: 'PERSONAL' as const }
         : session.user.teamId
           ? { teamId: session.user.teamId, ownerType: 'TEAM' as const }
           : null
 
-    if (!tagsWhere) {
+    if (!foldersWhere) {
       return { success: false, error: '팀에 소속되어 있지 않습니다' }
     }
 
-    const tags = await prisma.linkTag.findMany({
-      where: tagsWhere,
-      select: { id: true, name: true },
+    const folders = await prisma.linkFolder.findMany({
+      where: foldersWhere,
+      select: { id: true, name: true, parentId: true },
     })
 
-    if (tags.length === 0) {
-      return { success: false, error: '태그가 없습니다. 먼저 태그를 추가해주세요.' }
+    if (folders.length === 0) {
+      return { success: false, error: '폴더가 없습니다. 먼저 폴더를 추가해주세요.' }
     }
 
-    const prompt = buildTagSelectionPrompt(url, title, null, tags)
+    const foldersMap = new Map<string, FolderRecord>(
+      folders.map((f) => [f.id, { id: f.id, name: f.name, parentId: f.parentId }])
+    )
+    const foldersWithPath: FolderWithPath[] = folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      path: buildFolderPath(f.id, foldersMap),
+    }))
+
+    const prompt = buildFolderSelectionPrompt(url, title, null, foldersWithPath)
 
     let responseContent: string
 
@@ -82,7 +120,7 @@ export async function suggestTags(
 
       if (!geminiResponse.ok) {
         console.error('Gemini API Error:', await geminiResponse.text())
-        return { success: false, error: 'AI 태그 추천에 실패했습니다' }
+        return { success: false, error: 'AI 폴더 추천에 실패했습니다' }
       }
 
       const geminiData = await geminiResponse.json()
@@ -104,7 +142,7 @@ export async function suggestTags(
 
       if (!cohereResponse.ok) {
         console.error('Cohere API Error:', await cohereResponse.text())
-        return { success: false, error: 'AI 태그 추천에 실패했습니다' }
+        return { success: false, error: 'AI 폴더 추천에 실패했습니다' }
       }
 
       const cohereData = await cohereResponse.json()
@@ -126,7 +164,7 @@ export async function suggestTags(
 
       if (!openaiCompatibleResponse.ok) {
         console.error('AI API Error:', await openaiCompatibleResponse.text())
-        return { success: false, error: 'AI 태그 추천에 실패했습니다' }
+        return { success: false, error: 'AI 폴더 추천에 실패했습니다' }
       }
 
       const data = await openaiCompatibleResponse.json()
@@ -137,20 +175,25 @@ export async function suggestTags(
       return { success: false, error: 'AI 응답을 파싱할 수 없습니다' }
     }
 
-    const result = parseAIResponse(responseContent, tags)
+    const result = parseAIFolderResponse(responseContent, foldersWithPath)
+
+    if (!result.folderId) {
+      return { success: false, error: '적합한 폴더를 찾지 못했습니다' }
+    }
 
     return {
       success: true,
       data: {
-        tagIds: result.tagIds,
-        tagNames: result.tagNames,
-        confidence: result.tagIds.length > 0 ? 0.8 : 0,
+        folderId: result.folderId,
+        folderName: result.folderName,
+        folderPath: result.folderPath,
+        confidence: 0.8,
         reason: result.reason,
       },
     }
   } catch (error) {
-    console.error('suggestTags error:', error)
-    return { success: false, error: 'AI 태그 추천에 실패했습니다' }
+    console.error('suggestFolder error:', error)
+    return { success: false, error: 'AI 폴더 추천에 실패했습니다' }
   }
 }
 
@@ -165,7 +208,7 @@ export async function saveAISettings(formData: FormData): Promise<ActionResult> 
       provider: formData.get('provider') as string,
       apiKey: formData.get('apiKey') as string,
       model: (formData.get('model') as string) || undefined,
-      autoTagEnabled: formData.get('autoTagEnabled') === 'true',
+      autoFolderEnabled: formData.get('autoFolderEnabled') === 'true',
     }
 
     const parsed = aiSettingsSchema.safeParse(raw)
@@ -179,7 +222,7 @@ export async function saveAISettings(formData: FormData): Promise<ActionResult> 
         aiProvider: parsed.data.provider,
         aiApiKey: parsed.data.apiKey,
         aiModel: parsed.data.model || null,
-        aiAutoTagEnabled: parsed.data.autoTagEnabled ?? true,
+        aiAutoTagEnabled: parsed.data.autoFolderEnabled ?? true,
       },
     })
 
@@ -197,7 +240,7 @@ export async function getAISettings(): Promise<
     provider: AIProvider | null
     hasApiKey: boolean
     model: string | null
-    autoTagEnabled: boolean
+    autoFolderEnabled: boolean
   }>
 > {
   try {
@@ -217,7 +260,7 @@ export async function getAISettings(): Promise<
         provider: (user?.aiProvider as AIProvider) || null,
         hasApiKey: !!user?.aiApiKey,
         model: user?.aiModel || null,
-        autoTagEnabled: user?.aiAutoTagEnabled ?? true,
+        autoFolderEnabled: user?.aiAutoTagEnabled ?? true,
       },
     }
   } catch (error) {

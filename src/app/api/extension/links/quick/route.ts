@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { suggestTags } from '@/actions/ai-tags'
+import { suggestFolder } from '@/actions/ai-folders'
 import { createLink } from '@/actions/links'
+import { getFolders } from '@/actions/link-folders'
 import type { LinkOwnerType, CreateLinkInput } from '@/types/links'
 
 interface QuickSaveRequest {
@@ -9,6 +10,7 @@ interface QuickSaveRequest {
   title: string
   favicon?: string
   ownerTypes: LinkOwnerType[]
+  folderId?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -19,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as QuickSaveRequest
-    const { url, title, favicon, ownerTypes } = body
+    const { url, title, favicon, ownerTypes, folderId: providedFolderId } = body
 
     if (!url || !title || ownerTypes.length === 0) {
       return NextResponse.json(
@@ -31,15 +33,33 @@ export async function POST(request: NextRequest) {
     const results: Array<{ ownerType: LinkOwnerType; success: boolean; error?: string }> = []
 
     for (const ownerType of ownerTypes) {
-      const tagResult = await suggestTags(url, title, ownerType)
-      const tagIds = tagResult.success ? tagResult.data.tagIds : []
+      let folderId = providedFolderId
+
+      if (!folderId) {
+        const folderResult = await suggestFolder(url, title, ownerType)
+        if (folderResult.success) {
+          folderId = folderResult.data.folderId
+        }
+      }
+
+      if (!folderId) {
+        const foldersResult = await getFolders(ownerType)
+        if (foldersResult.success && foldersResult.data.length > 0) {
+          folderId = foldersResult.data[0].id
+        }
+      }
+
+      if (!folderId) {
+        results.push({ ownerType, success: false, error: '폴더가 없습니다. 먼저 폴더를 만들어주세요.' })
+        continue
+      }
 
       const linkInput: CreateLinkInput = {
         url,
         title,
         favicon: favicon || undefined,
         ownerType,
-        tagIds,
+        folderId,
       }
 
       const createResult = await createLink(linkInput)

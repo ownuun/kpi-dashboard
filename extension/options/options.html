@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPI Dashboard 확장 프로그램 설정</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>KPI Dashboard 설정</h1>
+      <p>링크 저장 확장 프로그램 설정</p>
+    </header>
+
+    <main class="main">
+      <!-- Server Settings -->
+      <section class="section">
+        <h2>서버 설정</h2>
+        
+        <div class="form-group">
+          <label for="server-url">서버 URL</label>
+          <div class="input-with-button">
+            <input 
+              type="url" 
+              id="server-url" 
+              placeholder="http://localhost:3000"
+              autocomplete="off"
+            >
+            <button type="button" id="test-connection" class="btn btn-secondary">
+              연결 테스트
+            </button>
+          </div>
+          <p id="connection-status" class="connection-status hidden"></p>
+          <p class="help-text">KPI Dashboard가 실행 중인 서버 주소를 입력하세요.</p>
+        </div>
+      </section>
+
+      <!-- Default Save Settings -->
+      <section class="section">
+        <h2>기본 저장 설정</h2>
+        <p class="section-description">링크를 저장할 때 기본으로 선택되는 옵션입니다.</p>
+        
+        <div class="form-group">
+          <label class="toggle-label">
+            <span class="toggle-text">
+              <strong>개인 저장</strong>
+              <span>링크를 개인 폴더에 저장합니다.</span>
+            </span>
+            <input type="checkbox" id="default-personal">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label class="toggle-label">
+            <span class="toggle-text">
+              <strong>팀 저장</strong>
+              <span>링크를 팀 폴더에 저장합니다.</span>
+            </span>
+            <input type="checkbox" id="default-team">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Keyboard Shortcuts -->
+      <section class="section">
+        <h2>키보드 단축키</h2>
+        <div class="shortcut-info">
+          <div class="shortcut-key">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+            <span class="shortcut-desc">현재 페이지 저장</span>
+          </div>
+          <p class="help-text">
+            단축키를 변경하려면 
+            <a href="chrome://extensions/shortcuts" id="shortcuts-link">Chrome 확장 프로그램 단축키 설정</a>
+            에서 변경할 수 있습니다.
+          </p>
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <div class="actions">
+        <button type="button" id="save-settings" class="btn btn-primary">
+          설정 저장
+        </button>
+        <span id="save-status" class="save-status hidden"></span>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>KPI Dashboard 링크 저장 v1.0.0</p>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

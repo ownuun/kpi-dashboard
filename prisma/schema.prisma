@@ -76,12 +76,13 @@ model User {
   transactions Transaction[] @relation("CreatedBy")
   createdTeams Team[]        @relation("TeamCreator")
 
-  // 링크 공유 관련
-  linkTags      LinkTag[]
-  personalLinks Link[]    @relation("PersonalLinks")
-  createdLinks  Link[]    @relation("CreatedLinks")
+  // 링크 공유 관련 (폴더 기반)
+  linkFolders   LinkFolder[]
+  personalLinks Link[]       @relation("PersonalLinks")
+  createdLinks  Link[]       @relation("CreatedLinks")
+  linkViews     LinkView[]
 
-  // AI 자동 태그 설정
+  // AI 자동 폴더 선택 설정
   aiProvider       String? @map("ai_provider")
   aiApiKey         String? @map("ai_api_key") @db.Text
   aiModel          String? @map("ai_model")
@@ -110,12 +111,12 @@ model Team {
   categories   Category[]
   transactions Transaction[]
 
-  // 링크 공유 관련
-  linkTags LinkTag[]
-  links    Link[]
+  // 링크 공유 관련 (폴더 기반)
+  linkFolders LinkFolder[]
+  links       Link[]
 
   // 템플릿 시스템 (간단한 카테고리 키 배열)
-  enabledTemplateCategories String[] @default(["sales"]) @map("enabled_template_categories")
+  enabledTemplateCategories String[]       @default(["sales"]) @map("enabled_template_categories")
   enabledTemplates          TeamTemplate[]
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -174,7 +175,7 @@ model Transaction {
 }
 
 // ============================================
-// 링크 공유 모델
+// 링크 공유 모델 (v3.0 - 폴더 기반)
 // ============================================
 
 enum LinkOwnerType {
@@ -182,12 +183,18 @@ enum LinkOwnerType {
   TEAM
 }
 
-// 태그 모델
-model LinkTag {
+// 폴더 모델 (계층형)
+model LinkFolder {
   id        String        @id @default(cuid())
   name      String
-  color     String        @default("#3B82F6")
+  icon      String?
   ownerType LinkOwnerType @map("owner_type")
+  sortOrder Int           @default(0) @map("sort_order")
+
+  // 계층 구조 (자기 참조)
+  parentId String?      @map("parent_id")
+  parent   LinkFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children LinkFolder[] @relation("FolderHierarchy")
 
   // 소유자 (PERSONAL일 때 userId 사용, TEAM일 때 teamId 사용)
   userId String? @map("user_id")
@@ -196,18 +203,20 @@ model LinkTag {
   teamId String? @map("team_id")
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  // 태그가 붙은 링크들 (다대다)
-  links LinkTagOnLink[]
+  // 폴더에 속한 링크들
+  links Link[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // 같은 소유자 내에서 태그 이름 중복 방지
-  @@unique([userId, name, ownerType])
-  @@unique([teamId, name, ownerType])
+  // 같은 부모 폴더 내에서 폴더 이름 중복 방지
+  @@unique([userId, parentId, name, ownerType])
+  @@unique([teamId, parentId, name, ownerType])
   @@index([userId, ownerType])
   @@index([teamId, ownerType])
-  @@map("link_tags")
+  @@index([parentId])
+  @@index([sortOrder])
+  @@map("link_folders")
 }
 
 // 링크 모델
@@ -219,6 +228,11 @@ model Link {
   favicon     String?
   rating      Int           @default(0)
   ownerType   LinkOwnerType @map("owner_type")
+  sortOrder   Int           @default(0) @map("sort_order")
+
+  // 폴더 (필수)
+  folderId String     @map("folder_id")
+  folder   LinkFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   // 소유자
   userId String? @map("user_id")
@@ -231,33 +245,35 @@ model Link {
   createdById String @map("created_by_id")
   createdBy   User   @relation("CreatedLinks", fields: [createdById], references: [id])
 
-  // 태그들 (다대다)
-  tags LinkTagOnLink[]
+  // 복사 원본 추적 (팀 → 개인 복사 시)
+  sourceTeamLinkId String? @map("source_team_link_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId, ownerType])
   @@index([teamId, ownerType])
+  @@index([folderId])
   @@index([rating])
+  @@index([sortOrder])
   @@index([createdAt])
   @@map("links")
+
+  views LinkView[]
 }
 
-// 링크-태그 연결 테이블 (다대다)
-model LinkTagOnLink {
-  id     String  @id @default(cuid())
-  linkId String  @map("link_id")
-  link   Link    @relation(fields: [linkId], references: [id], onDelete: Cascade)
-  tagId  String  @map("tag_id")
-  tag    LinkTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+model LinkView {
+  id       String   @id @default(cuid())
+  linkId   String   @map("link_id")
+  link     Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  viewedAt DateTime @default(now()) @map("viewed_at")
 
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@unique([linkId, tagId])
+  @@unique([linkId, userId])
   @@index([linkId])
-  @@index([tagId])
-  @@map("link_tag_on_link")
+  @@index([userId])
+  @@map("link_views")
 }
 
 // ============================================
