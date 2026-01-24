@@ -237,6 +237,78 @@ export async function joinTeamAndUpdateSession(
   return result
 }
 
+export async function getEnabledTemplateCategories(): Promise<ActionResult<string[]>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.teamId) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id: session.user.teamId },
+      select: { enabledTemplateCategories: true },
+    })
+
+    const enabled = team?.enabledTemplateCategories ?? ['sales']
+
+    return { success: true, data: enabled }
+  } catch (error) {
+    console.error('getEnabledTemplateCategories error:', error)
+    return { success: false, error: '템플릿 조회에 실패했습니다' }
+  }
+}
+
+export async function toggleTemplateCategory(
+  categoryKey: string,
+  enabled: boolean
+): Promise<ActionResult<void>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id || !session?.user?.teamId) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    if (categoryKey === 'sales') {
+      return { success: false, error: '매출관리는 비활성화할 수 없습니다' }
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    })
+
+    if (currentUser?.role !== 'ADMIN') {
+      return { success: false, error: '관리자만 템플릿을 변경할 수 있습니다' }
+    }
+
+    const team = await prisma.team.findUnique({
+      where: { id: session.user.teamId },
+      select: { enabledTemplateCategories: true },
+    })
+
+    let categories = team?.enabledTemplateCategories ?? ['sales']
+
+    if (enabled && !categories.includes(categoryKey)) {
+      categories = [...categories, categoryKey]
+    } else if (!enabled) {
+      categories = categories.filter((c: string) => c !== categoryKey)
+    }
+
+    await prisma.team.update({
+      where: { id: session.user.teamId },
+      data: { enabledTemplateCategories: categories },
+    })
+
+    revalidatePath('/settings/templates')
+    revalidatePath('/')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    console.error('toggleTemplateCategory error:', error)
+    return { success: false, error: '템플릿 변경에 실패했습니다' }
+  }
+}
+
 export async function removeMember(
   memberId: string
 ): Promise<ActionResult<void>> {

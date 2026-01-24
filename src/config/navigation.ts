@@ -21,6 +21,7 @@ export interface NavCategory {
   icon: LucideIcon
   items: NavItem[]
   defaultOpen?: boolean
+  isTemplate?: boolean
 }
 
 export const navigationConfig: NavCategory[] = [
@@ -29,6 +30,7 @@ export const navigationConfig: NavCategory[] = [
     label: '매출관리',
     icon: TrendingUp,
     defaultOpen: true,
+    isTemplate: true,
     items: [
       { key: 'dashboard', label: '대시보드', href: '/', icon: LayoutDashboard },
       { key: 'transactions', label: '거래', href: '/transactions', icon: Receipt },

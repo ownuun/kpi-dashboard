@@ -1,11 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { navigationConfig, type NavCategory } from '@/config/navigation'
+
+interface SidebarProps {
+  enabledTemplates?: string[]
+}
 
 function NavCategorySection({ category }: { category: NavCategory }) {
   const pathname = usePathname()
@@ -72,7 +76,14 @@ function NavCategorySection({ category }: { category: NavCategory }) {
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
+  const filteredNavigation = useMemo(() => {
+    return navigationConfig.filter((category) => {
+      if (!category.isTemplate) return true
+      return enabledTemplates.includes(category.key)
+    })
+  }, [enabledTemplates])
+
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200/70 bg-white hidden lg:block">
       <div className="flex h-16 items-center border-b border-slate-200/70 px-6">
@@ -82,7 +93,7 @@ export function Sidebar() {
       </div>
 
       <nav className="p-4 space-y-2">
-        {navigationConfig.map((category) => (
+        {filteredNavigation.map((category) => (
           <NavCategorySection key={category.key} category={category} />
         ))}
       </nav>

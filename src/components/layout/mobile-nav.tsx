@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Menu, ChevronDown } from 'lucide-react'
@@ -14,6 +14,10 @@ import {
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { navigationConfig, type NavCategory } from '@/config/navigation'
+
+interface MobileNavProps {
+  enabledTemplates?: string[]
+}
 
 function MobileNavCategory({ 
   category, 
@@ -87,8 +91,15 @@ function MobileNavCategory({
   )
 }
 
-export function MobileNav() {
+export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
   const [open, setOpen] = useState(false)
+
+  const filteredNavigation = useMemo(() => {
+    return navigationConfig.filter((category) => {
+      if (!category.isTemplate) return true
+      return enabledTemplates.includes(category.key)
+    })
+  }, [enabledTemplates])
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -105,7 +116,7 @@ export function MobileNav() {
           </SheetTitle>
         </SheetHeader>
         <nav className="p-4 space-y-2">
-          {navigationConfig.map((category) => (
+          {filteredNavigation.map((category) => (
             <MobileNavCategory 
               key={category.key} 
               category={category}

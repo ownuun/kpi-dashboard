@@ -114,8 +114,9 @@ model Team {
   linkTags LinkTag[]
   links    Link[]
 
-  // 템플릿 시스템
-  enabledTemplates TeamTemplate[]
+  // 템플릿 시스템 (간단한 카테고리 키 배열)
+  enabledTemplateCategories String[] @default(["sales"]) @map("enabled_template_categories")
+  enabledTemplates          TeamTemplate[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
