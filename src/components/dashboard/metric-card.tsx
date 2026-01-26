@@ -1,7 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { formatKRW, formatPercent } from '@/lib/format'
+import { formatKRWParts, formatPercent } from '@/lib/format'
 
 interface MetricCardProps {
   title: string
@@ -36,8 +36,9 @@ export function MetricCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-3 md:px-6 md:pb-5">
-        <div className={cn('text-lg md:text-2xl font-semibold font-mono tracking-tight', colorMap[type])}>
-          {formatKRW(value)}
+        <div className={cn('font-semibold font-mono tracking-tight', colorMap[type])}>
+          <span className="text-sm sm:text-base md:text-xl">{formatKRWParts(value).symbol}</span>
+          <span className="text-lg sm:text-xl md:text-2xl">{formatKRWParts(value).number}</span>
         </div>
         {changePercent !== undefined && (
           <div className="mt-2 flex items-center text-xs">

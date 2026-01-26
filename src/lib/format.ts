@@ -6,6 +6,18 @@ export function formatKRW(amount: number): string {
   }).format(amount)
 }
 
+export function formatKRWParts(amount: number): { symbol: string; number: string } {
+  const formatted = new Intl.NumberFormat('ko-KR', {
+    style: 'currency',
+    currency: 'KRW',
+    maximumFractionDigits: 0,
+  }).format(amount)
+  return {
+    symbol: '₩',
+    number: formatted.replace('₩', ''),
+  }
+}
+
 export function formatNumber(num: number): string {
   return new Intl.NumberFormat('ko-KR').format(num)
 }
