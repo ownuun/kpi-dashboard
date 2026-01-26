@@ -50,7 +50,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                     {formatShortDate(tx.date)}
                   </span>
                 </div>
-                <p className="text-sm font-medium truncate">
+                <p className="text-sm font-medium truncate hidden sm:block">
                   {tx.description || tx.categoryName}
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block w-14 text-right">
