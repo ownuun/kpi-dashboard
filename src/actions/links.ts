@@ -310,6 +310,25 @@ export async function createLink(input: CreateLinkInput): Promise<ActionResult<L
       select: { sortOrder: true },
     })
 
+    let minUserOrder = 0
+    if (ownerType === 'TEAM') {
+      const existingLinkIds = await prisma.link.findMany({
+        where: { folderId },
+        select: { id: true },
+      })
+      if (existingLinkIds.length > 0) {
+        const minUserOrderEntry = await prisma.userLinkOrder.findFirst({
+          where: {
+            userId: session.user.id,
+            linkId: { in: existingLinkIds.map(l => l.id) },
+          },
+          orderBy: { sortOrder: 'asc' },
+          select: { sortOrder: true },
+        })
+        minUserOrder = (minUserOrderEntry?.sortOrder ?? 1) - 1
+      }
+    }
+
     const createData = {
       url,
       title,
@@ -350,6 +369,16 @@ export async function createLink(input: CreateLinkInput): Promise<ActionResult<L
         },
       },
     })
+
+    if (ownerType === 'TEAM') {
+      await prisma.userLinkOrder.create({
+        data: {
+          userId: session.user.id,
+          linkId: link.id,
+          sortOrder: minUserOrder,
+        },
+      })
+    }
 
     revalidatePath('/links')
 
