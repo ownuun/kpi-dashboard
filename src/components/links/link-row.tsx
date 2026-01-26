@@ -142,7 +142,7 @@ export function LinkRow({
             />
           )}
           <span className={cn(
-            "font-medium truncate",
+            "text-sm font-medium truncate",
             isChecked ? "text-slate-400 line-through" : "text-slate-900"
           )}>
             {link.title}
