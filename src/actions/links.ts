@@ -866,6 +866,26 @@ export async function transferLinkToFolder(
         select: { sortOrder: true },
       })
 
+      // 팀 폴더로 복사할 때는 UserLinkOrder의 최소값도 확인
+      let minUserOrder = 0
+      if (targetFolder.ownerType === 'TEAM') {
+        const existingLinkIds = await prisma.link.findMany({
+          where: { folderId: targetFolderId },
+          select: { id: true },
+        })
+        if (existingLinkIds.length > 0) {
+          const minUserOrderEntry = await prisma.userLinkOrder.findFirst({
+            where: {
+              userId: session.user.id,
+              linkId: { in: existingLinkIds.map(l => l.id) },
+            },
+            orderBy: { sortOrder: 'asc' },
+            select: { sortOrder: true },
+          })
+          minUserOrder = (minUserOrderEntry?.sortOrder ?? 1) - 1
+        }
+      }
+
       const copiedLink = await prisma.link.create({
         data: {
           url: link.url,
@@ -904,6 +924,17 @@ export async function transferLinkToFolder(
           },
         },
       })
+
+      // 팀 폴더로 복사 시 UserLinkOrder 생성
+      if (targetFolder.ownerType === 'TEAM') {
+        await prisma.userLinkOrder.create({
+          data: {
+            userId: session.user.id,
+            linkId: copiedLink.id,
+            sortOrder: minUserOrder,
+          },
+        })
+      }
 
       revalidatePath('/links')
       return { success: true, data: { action: 'copied', link: transformLink(copiedLink) } }
