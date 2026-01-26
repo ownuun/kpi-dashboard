@@ -77,10 +77,11 @@ model User {
   createdTeams Team[]        @relation("TeamCreator")
 
   // 링크 공유 관련 (폴더 기반)
-  linkFolders   LinkFolder[]
-  personalLinks Link[]       @relation("PersonalLinks")
-  createdLinks  Link[]       @relation("CreatedLinks")
-  linkViews     LinkView[]
+  linkFolders    LinkFolder[]
+  personalLinks  Link[]          @relation("PersonalLinks")
+  createdLinks   Link[]          @relation("CreatedLinks")
+  linkViews      LinkView[]
+  userLinkOrders UserLinkOrder[]
 
   // AI 자동 폴더 선택 설정
   aiProvider       String? @map("ai_provider")
@@ -259,7 +260,8 @@ model Link {
   @@index([createdAt])
   @@map("links")
 
-  views LinkView[]
+  views      LinkView[]
+  userOrders UserLinkOrder[]
 }
 
 model LinkView {
@@ -274,6 +276,21 @@ model LinkView {
   @@index([linkId])
   @@index([userId])
   @@map("link_views")
+}
+
+// 사용자별 팀 링크 순서 (개인별로 다르게 관리)
+model UserLinkOrder {
+  id        String @id @default(cuid())
+  userId    String @map("user_id")
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkId    String @map("link_id")
+  link      Link   @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@unique([userId, linkId])
+  @@index([userId, sortOrder])
+  @@index([linkId])
+  @@map("user_link_orders")
 }
 
 // ============================================

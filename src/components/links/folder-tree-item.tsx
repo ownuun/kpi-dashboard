@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useDroppable } from '@dnd-kit/core'
-import { ChevronRight, Folder, FolderOpen, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { ChevronRight, Folder, FolderOpen, GripVertical, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +28,7 @@ interface FolderTreeItemProps {
   onEdit?: (folder: LinkFolderWithChildren) => void
   onDelete?: (folderId: string) => void
   isLast?: boolean
+  disableSortable?: boolean
 }
 
 const STORAGE_KEY = 'links-folder-expanded'
@@ -53,18 +56,41 @@ export function FolderTreeItem({
   onEdit,
   onDelete,
   isLast = false,
+  disableSortable = false,
 }: FolderTreeItemProps) {
   const [isOpen, setIsOpen] = useState(false)
   const hasChildren = folder.children && folder.children.length > 0
   const isSelected = selectedFolderId === folder.id
 
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `folder-${folder.id}`,
     data: {
       type: 'folder',
       folder,
     },
   })
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: folder.id, disabled: disableSortable })
+
+  const style = disableSortable ? {} : {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const setNodeRef = (node: HTMLElement | null) => {
+    setDroppableRef(node)
+    if (!disableSortable) {
+      setSortableRef(node)
+    }
+  }
 
   useEffect(() => {
     const expanded = getExpandedFolders()
@@ -92,7 +118,7 @@ export function FolderTreeItem({
   }
 
   return (
-    <div ref={setNodeRef} className="relative">
+    <div ref={setNodeRef} style={style} className="relative">
       <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
         <div
           className={cn(
@@ -109,6 +135,17 @@ export function FolderTreeItem({
             }
           }}
         >
+        {!disableSortable && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-slate-200 rounded shrink-0 cursor-grab active:cursor-grabbing touch-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-slate-400" />
+          </button>
+        )}
+
         {hasChildren ? (
           <CollapsibleTrigger asChild onClick={handleToggle}>
             <button className="p-0.5 hover:bg-slate-200 rounded shrink-0">
@@ -178,6 +215,7 @@ export function FolderTreeItem({
                   onEdit={onEdit}
                   onDelete={onDelete}
                   isLast={index === folder.children.length - 1}
+                  disableSortable={disableSortable}
                 />
               ))}
             </div>

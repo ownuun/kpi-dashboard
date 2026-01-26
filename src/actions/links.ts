@@ -142,6 +142,8 @@ export async function getLinks(
       where.createdAt = { ...((where.createdAt as object) || {}), lte: filters.endDate }
     }
 
+    const isTeamQuery = filters.ownerType === 'TEAM'
+
     const [links, total] = await Promise.all([
       prisma.link.findMany({
         where,
@@ -167,17 +169,40 @@ export async function getLinks(
             },
           },
         },
-        orderBy: [{ createdAt: 'desc' }],
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         skip: (page - 1) * perPage,
         take: perPage,
       }),
       prisma.link.count({ where }),
     ])
 
+    let sortedLinks = links as typeof links
+    if (isTeamQuery && links.length > 0) {
+      const userOrders = await prisma.userLinkOrder.findMany({
+        where: {
+          userId: session.user.id,
+          linkId: { in: links.map(l => l.id) },
+        },
+        select: { linkId: true, sortOrder: true },
+      })
+      
+      const orderMap = new Map(userOrders.map(o => [o.linkId, o.sortOrder]))
+      
+      sortedLinks = [...links].sort((a, b) => {
+        const aOrder = orderMap.get(a.id)
+        const bOrder = orderMap.get(b.id)
+        
+        if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder
+        if (aOrder !== undefined) return -1
+        if (bOrder !== undefined) return 1
+        return a.sortOrder - b.sortOrder
+      })
+    }
+
     return {
       success: true,
       data: {
-        links: links.map(transformLink),
+        links: sortedLinks.map(transformLink),
         total,
         page,
         perPage,
@@ -279,10 +304,9 @@ export async function createLink(input: CreateLinkInput): Promise<ActionResult<L
       return { success: false, error: '폴더 유형과 링크 유형이 일치하지 않습니다' }
     }
 
-    // 최대 sortOrder 조회
-    const maxSortOrderLink = await prisma.link.findFirst({
+    const minSortOrderLink = await prisma.link.findFirst({
       where: { folderId },
-      orderBy: { sortOrder: 'desc' },
+      orderBy: { sortOrder: 'asc' },
       select: { sortOrder: true },
     })
 
@@ -294,7 +318,7 @@ export async function createLink(input: CreateLinkInput): Promise<ActionResult<L
       rating: rating ?? 0,
       ownerType: ownerType as 'PERSONAL' | 'TEAM',
       folderId,
-      sortOrder: (maxSortOrderLink?.sortOrder ?? -1) + 1,
+      sortOrder: (minSortOrderLink?.sortOrder ?? 1) - 1,
       createdById: session.user.id,
       ...(ownerType === 'PERSONAL'
         ? { userId: session.user.id }
@@ -513,7 +537,6 @@ export async function moveLink(
   }
 }
 
-// 링크 순서 변경
 export async function reorderLinks(
   folderId: string,
   updates: { id: string; sortOrder: number }[]
@@ -524,14 +547,46 @@ export async function reorderLinks(
       return { success: false, error: 'Unauthorized' }
     }
 
-    await prisma.$transaction(
-      updates.map((update) =>
-        prisma.link.update({
-          where: { id: update.id },
-          data: { sortOrder: update.sortOrder },
-        })
+    const folder = await prisma.linkFolder.findUnique({
+      where: { id: folderId },
+      select: { ownerType: true },
+    })
+
+    if (!folder) {
+      return { success: false, error: '폴더를 찾을 수 없습니다' }
+    }
+
+    if (folder.ownerType === 'TEAM') {
+      await prisma.$transaction(
+        updates.map((update) =>
+          prisma.userLinkOrder.upsert({
+            where: {
+              userId_linkId: {
+                userId: session.user.id,
+                linkId: update.id,
+              },
+            },
+            create: {
+              userId: session.user.id,
+              linkId: update.id,
+              sortOrder: update.sortOrder,
+            },
+            update: {
+              sortOrder: update.sortOrder,
+            },
+          })
+        )
       )
-    )
+    } else {
+      await prisma.$transaction(
+        updates.map((update) =>
+          prisma.link.update({
+            where: { id: update.id },
+            data: { sortOrder: update.sortOrder },
+          })
+        )
+      )
+    }
 
     revalidatePath('/links')
 
@@ -578,10 +633,9 @@ export async function copyTeamLinkToPersonal(
       return { success: false, error: '폴더 접근 권한이 없습니다' }
     }
 
-    // 최대 sortOrder 조회
-    const maxSortOrderLink = await prisma.link.findFirst({
+    const minSortOrderLink = await prisma.link.findFirst({
       where: { folderId: personalFolderId },
-      orderBy: { sortOrder: 'desc' },
+      orderBy: { sortOrder: 'asc' },
       select: { sortOrder: true },
     })
 
@@ -594,7 +648,7 @@ export async function copyTeamLinkToPersonal(
         rating: teamLink.rating,
         ownerType: 'PERSONAL',
         folderId: personalFolderId,
-        sortOrder: (maxSortOrderLink?.sortOrder ?? -1) + 1,
+        sortOrder: (minSortOrderLink?.sortOrder ?? 1) - 1,
         userId: session.user.id,
         createdById: session.user.id,
         sourceTeamLinkId: teamLink.id,
@@ -672,10 +726,9 @@ export async function copyPersonalLinkToTeam(
       return { success: false, error: '폴더 접근 권한이 없습니다' }
     }
 
-    // 최대 sortOrder 조회
-    const maxSortOrderLink = await prisma.link.findFirst({
+    const minSortOrderLink = await prisma.link.findFirst({
       where: { folderId: teamFolderId },
-      orderBy: { sortOrder: 'desc' },
+      orderBy: { sortOrder: 'asc' },
       select: { sortOrder: true },
     })
 
@@ -688,7 +741,7 @@ export async function copyPersonalLinkToTeam(
         rating: personalLink.rating,
         ownerType: 'TEAM',
         folderId: teamFolderId,
-        sortOrder: (maxSortOrderLink?.sortOrder ?? -1) + 1,
+        sortOrder: (minSortOrderLink?.sortOrder ?? 1) - 1,
         teamId: session.user.teamId,
         createdById: session.user.id,
       },
@@ -767,10 +820,18 @@ export async function transferLinkToFolder(
 
     // 같은 ownerType이면 이동, 다르면 복사
     if (link.ownerType === targetFolder.ownerType) {
-      // 이동
+      const minSortOrderLink = await prisma.link.findFirst({
+        where: { folderId: targetFolderId },
+        orderBy: { sortOrder: 'asc' },
+        select: { sortOrder: true },
+      })
+
       const movedLink = await prisma.link.update({
         where: { id: linkId },
-        data: { folderId: targetFolderId },
+        data: { 
+          folderId: targetFolderId,
+          sortOrder: (minSortOrderLink?.sortOrder ?? 1) - 1,
+        },
         include: {
           folder: {
             select: {
@@ -799,9 +860,9 @@ export async function transferLinkToFolder(
       return { success: true, data: { action: 'moved', link: transformLink(movedLink) } }
     } else {
       // 복사
-      const maxSortOrderLink = await prisma.link.findFirst({
+      const minSortOrderLink = await prisma.link.findFirst({
         where: { folderId: targetFolderId },
-        orderBy: { sortOrder: 'desc' },
+        orderBy: { sortOrder: 'asc' },
         select: { sortOrder: true },
       })
 
@@ -814,7 +875,7 @@ export async function transferLinkToFolder(
           rating: link.rating,
           ownerType: targetFolder.ownerType as 'PERSONAL' | 'TEAM',
           folderId: targetFolderId,
-          sortOrder: (maxSortOrderLink?.sortOrder ?? -1) + 1,
+          sortOrder: (minSortOrderLink?.sortOrder ?? 1) - 1,
           createdById: session.user.id,
           ...(targetFolder.ownerType === 'PERSONAL'
             ? { userId: session.user.id, sourceTeamLinkId: link.ownerType === 'TEAM' ? link.id : null }

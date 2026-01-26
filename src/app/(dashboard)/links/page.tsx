@@ -18,13 +18,13 @@ import {
   DragEndEvent,
   CollisionDetection,
 } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import { sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable'
 import { Button } from '@/components/ui/button'
 import { FolderSidebar } from '@/components/links/folder-sidebar'
 import { LinkList } from '@/components/links/link-list'
 import { QuickLinkInput } from '@/components/links/quick-link-input'
 import { getFolderTree } from '@/actions/link-folders'
-import { getLinks, updateLink, transferLinkToFolder } from '@/actions/links'
+import { getLinks, updateLink, transferLinkToFolder, reorderLinks } from '@/actions/links'
 import { toast } from 'sonner'
 import type { LinkFolderTree, LinkFolderWithChildren, LinkWithDetails, LinkOwnerType } from '@/types/links'
 
@@ -58,7 +58,6 @@ export default function LinksPage() {
     })
   )
 
-  // Custom collision detection: prioritize pointer position, fallback to rect intersection
   const customCollisionDetection: CollisionDetection = useCallback((args) => {
     const pointerCollisions = pointerWithin(args)
     if (pointerCollisions.length > 0) {
@@ -142,7 +141,8 @@ export default function LinksPage() {
 
   function handleDragStart(event: DragStartEvent) {
     const { active } = event
-    const link = links.find((l) => l.id === active.id)
+    const activeId = String(active.id)
+    const link = links.find((l) => l.id === activeId)
     if (link) {
       setDraggingLink(link)
     }
@@ -150,40 +150,63 @@ export default function LinksPage() {
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
+    const wasDraggingLink = draggingLink
     setDraggingLink(null)
 
-    if (!over) return
+    if (!over || active.id === over.id) return
 
+    const activeId = String(active.id)
     const overId = String(over.id)
-    if (!overId.startsWith('folder-')) return
 
-    const targetFolderId = overId.replace('folder-', '')
-    const linkId = String(active.id)
-    const link = links.find((l) => l.id === linkId)
+    if (wasDraggingLink && overId.startsWith('folder-')) {
+      const targetFolderId = overId.replace('folder-', '')
+      const link = links.find((l) => l.id === activeId)
 
-    if (!link || link.folder.id === targetFolderId) return
+      if (!link || link.folder.id === targetFolderId) return
 
-    const targetFolder = findFolderById([...folderTree.personal, ...folderTree.team], targetFolderId)
-    const willCopy = targetFolder && link.ownerType !== targetFolder.ownerType
+      const targetFolder = findFolderById([...folderTree.personal, ...folderTree.team], targetFolderId)
+      const willCopy = targetFolder && link.ownerType !== targetFolder.ownerType
 
-    if (!willCopy) {
-      setLinks((prev) => prev.filter((l) => l.id !== linkId))
+      if (!willCopy) {
+        setLinks((prev) => prev.filter((l) => l.id !== activeId))
+      }
+
+      const result = await transferLinkToFolder(activeId, targetFolderId)
+
+      if (result.success) {
+        const { action } = result.data
+        if (action === 'moved') {
+          toast.success('링크가 이동되었습니다')
+        } else {
+          toast.success('링크가 복사되었습니다')
+        }
+        loadContent()
+      } else {
+        if (!willCopy && link) {
+          setLinks((prev) => [...prev, link])
+        }
+        toast.error(result.error || '작업에 실패했습니다')
+      }
+      return
     }
 
-    const result = await transferLinkToFolder(linkId, targetFolderId)
+    const oldIndex = links.findIndex((l) => l.id === activeId)
+    const newIndex = links.findIndex((l) => l.id === overId)
+    
+    if (oldIndex !== -1 && newIndex !== -1 && selectedFolderId) {
+      const newLinks = arrayMove(links, oldIndex, newIndex)
+      setLinks(newLinks)
 
-    if (result.success) {
-      const { action } = result.data
-      if (action === 'moved') {
-        toast.success('링크가 이동되었습니다')
-      } else {
-        toast.success('링크가 복사되었습니다')
+      const updates = newLinks.map((link, index) => ({
+        id: link.id,
+        sortOrder: index,
+      }))
+
+      const result = await reorderLinks(selectedFolderId, updates)
+      if (!result.success) {
+        setLinks(links)
+        toast.error('순서 변경에 실패했습니다')
       }
-    } else {
-      if (!willCopy) {
-        setLinks((prev) => [...prev, link])
-      }
-      toast.error(result.error || '작업에 실패했습니다')
     }
   }
 
@@ -204,6 +227,7 @@ export default function LinksPage() {
       } else {
         toast.success('링크가 복사되었습니다')
       }
+      loadContent()
     } else {
       if (!willCopy) {
         setLinks((prev) => [...prev, link])
@@ -246,11 +270,14 @@ export default function LinksPage() {
           />
         )}
 
-        <div className={`
-          fixed inset-y-0 left-0 z-50 md:relative md:z-0
-          transform transition-transform duration-200 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        `}>
+        <div 
+          className={`
+            fixed inset-y-0 left-0 z-50 md:relative md:z-0
+            transform transition-transform duration-200 ease-in-out
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+          style={{ width: '256px', minWidth: '256px', maxWidth: '256px' }}
+        >
           <FolderSidebar
             folderTree={folderTree}
             selectedFolderId={selectedFolderId}
@@ -259,6 +286,7 @@ export default function LinksPage() {
               setSidebarOpen(false)
             }}
             onFolderChange={loadData}
+            isDraggingLink={!!draggingLink}
           />
         </div>
 

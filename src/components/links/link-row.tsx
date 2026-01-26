@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MoreHorizontal, Pencil, Trash2, Copy, FolderInput } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Copy, FolderInput, GripVertical } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -118,6 +118,8 @@ export function LinkRow({
       {isChecked && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />
       )}
+      
+      <GripVertical className="h-4 w-4 text-slate-300 shrink-0" />
       
       <div data-no-navigate onClick={(e) => e.stopPropagation()}>
         <Checkbox
