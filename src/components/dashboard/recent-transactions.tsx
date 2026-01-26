@@ -33,9 +33,9 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
             {transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex flex-col gap-1.5 rounded-lg p-2.5 border border-slate-100 hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:border-0 sm:gap-3"
+                className="flex flex-col gap-1.5 rounded-lg p-2.5 border border-slate-100 hover:bg-muted/50 transition-colors sm:grid sm:grid-cols-[auto_1fr_auto_auto] sm:items-center sm:gap-4 sm:border-0 sm:p-2"
               >
-                <div className="flex items-center justify-between sm:justify-start sm:gap-3">
+                <div className="flex items-center justify-between sm:justify-start">
                   <Badge
                     variant="outline"
                     className="text-xs"
@@ -50,13 +50,25 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                     {formatShortDate(tx.date)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between flex-1 sm:contents">
-                  <p className="text-sm font-medium truncate">
+                <p className="text-sm font-medium truncate">
+                  {tx.description || tx.categoryName}
+                </p>
+                <p className="text-xs text-muted-foreground hidden sm:block w-14 text-right">
+                  {formatShortDate(tx.date)}
+                </p>
+                <span
+                  className={cn(
+                    'font-mono text-sm font-medium w-24 text-right hidden sm:block',
+                    tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
+                  )}
+                >
+                  {tx.type === 'INCOME' ? '+' : '-'}
+                  {formatKRW(tx.amount)}
+                </span>
+                <div className="flex items-center justify-between sm:hidden">
+                  <span className="text-sm font-medium truncate">
                     {tx.description || tx.categoryName}
-                  </p>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                    {formatShortDate(tx.date)}
-                  </p>
+                  </span>
                   <span
                     className={cn(
                       'font-mono text-sm font-medium shrink-0',
