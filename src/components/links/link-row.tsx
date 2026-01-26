@@ -130,19 +130,19 @@ export function LinkRow({
       </div>
 
       <div className={cn("flex-1 min-w-0 transition-opacity", isChecked && "opacity-60")}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           {link.favicon && (
             <img
               src={link.favicon}
               alt=""
-              className={cn("w-4 h-4 rounded", isChecked && "grayscale")}
+              className={cn("w-4 h-4 rounded shrink-0 mt-0.5", isChecked && "grayscale")}
               onError={(e) => {
                 e.currentTarget.style.display = 'none'
               }}
             />
           )}
           <span className={cn(
-            "font-medium truncate",
+            "font-medium line-clamp-2 sm:line-clamp-1",
             isChecked ? "text-slate-400 line-through" : "text-slate-900"
           )}>
             {link.title}
