@@ -29,15 +29,16 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
             아직 거래 내역이 없습니다
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex items-center justify-between rounded-lg p-2 hover:bg-muted/50 transition-colors"
+                className="flex flex-col gap-1.5 rounded-lg p-2.5 border border-slate-100 hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between sm:border-0 sm:gap-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between sm:justify-start sm:gap-3">
                   <Badge
                     variant="outline"
+                    className="text-xs"
                     style={{
                       borderColor: tx.categoryColor,
                       color: tx.categoryColor,
@@ -45,24 +46,27 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                   >
                     {tx.categoryName}
                   </Badge>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {tx.description || tx.categoryName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatShortDate(tx.date)}
-                    </p>
-                  </div>
+                  <span className="text-xs text-muted-foreground sm:hidden">
+                    {formatShortDate(tx.date)}
+                  </span>
                 </div>
-                <span
-                  className={cn(
-                    'font-mono text-sm font-medium',
-                    tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
-                  )}
-                >
-                  {tx.type === 'INCOME' ? '+' : '-'}
-                  {formatKRW(tx.amount)}
-                </span>
+                <div className="flex items-center justify-between flex-1 sm:contents">
+                  <p className="text-sm font-medium truncate">
+                    {tx.description || tx.categoryName}
+                  </p>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                    {formatShortDate(tx.date)}
+                  </p>
+                  <span
+                    className={cn(
+                      'font-mono text-sm font-medium shrink-0',
+                      tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
+                    )}
+                  >
+                    {tx.type === 'INCOME' ? '+' : '-'}
+                    {formatKRW(tx.amount)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

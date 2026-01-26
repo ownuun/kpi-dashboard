@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
       <TrendChart monthlyData={monthlyTrend} weeklyData={weeklyTrend} />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
         <MetricCard
           title="이번 달 수입"
           value={metrics.income.total}
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         <CategoryDonut title="수입 카테고리" data={incomeByCategory} />
         <CategoryDonut title="지출 카테고리" data={expenseByCategory} />
       </div>

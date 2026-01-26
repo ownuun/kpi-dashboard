@@ -30,13 +30,13 @@ export function MetricCard({
 
   return (
     <Card className={cn('overflow-hidden shadow-sm border-slate-200/60 bg-white', className)}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-5 px-6">
-        <CardTitle className="text-sm font-medium text-slate-500">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3 md:pb-2 md:pt-5 md:px-6">
+        <CardTitle className="text-xs md:text-sm font-medium text-slate-500">
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-5">
-        <div className={cn('text-2xl font-semibold font-mono tracking-tight', colorMap[type])}>
+      <CardContent className="px-3 pb-3 md:px-6 md:pb-5">
+        <div className={cn('text-lg md:text-2xl font-semibold font-mono tracking-tight', colorMap[type])}>
           {formatKRW(value)}
         </div>
         {changePercent !== undefined && (
