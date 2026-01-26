@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   arrayMove,
   SortableContext,
@@ -43,19 +43,39 @@ export function LinkList({
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
   const [movingLink, setMovingLink] = useState<LinkWithDetails | null>(null)
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const prevLinkIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     setLinks(initialLinks)
+    
+    const currentLinkIds = new Set(initialLinks.map(l => l.id))
+    const prevLinkIds = prevLinkIdsRef.current
+    const isSameLinks = currentLinkIds.size === prevLinkIds.size && 
+      [...currentLinkIds].every(id => prevLinkIds.has(id))
+    
     if (ownerType === 'TEAM' && currentUserId) {
-      const viewedIds = new Set(
+      const serverViewedIds = new Set(
         initialLinks
           .filter(link => link.viewedBy?.some(v => v.id === currentUserId))
           .map(link => link.id)
       )
-      setCheckedIds(viewedIds)
+      
+      if (isSameLinks) {
+        setCheckedIds(prev => {
+          const merged = new Set(serverViewedIds)
+          prev.forEach(id => {
+            if (currentLinkIds.has(id)) merged.add(id)
+          })
+          return merged
+        })
+      } else {
+        setCheckedIds(serverViewedIds)
+      }
     } else {
       setCheckedIds(new Set())
     }
+    
+    prevLinkIdsRef.current = currentLinkIds
   }, [initialLinks, ownerType, currentUserId])
 
   useEffect(() => {
