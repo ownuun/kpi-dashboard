@@ -139,7 +139,7 @@ export function FolderTreeItem({
           <button
             {...attributes}
             {...listeners}
-            className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-slate-200 rounded shrink-0 cursor-grab active:cursor-grabbing touch-none"
+            className="p-0.5 md:opacity-0 md:group-hover:opacity-100 hover:bg-slate-200 rounded shrink-0 cursor-grab active:cursor-grabbing touch-none"
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical className="h-3.5 w-3.5 text-slate-400" />
@@ -175,7 +175,7 @@ export function FolderTreeItem({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="h-6 w-6 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />

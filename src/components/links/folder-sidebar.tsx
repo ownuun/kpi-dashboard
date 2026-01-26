@@ -127,7 +127,7 @@ function FolderItem({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-6 w-6 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
