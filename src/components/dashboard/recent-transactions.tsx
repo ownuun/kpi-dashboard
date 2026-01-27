@@ -58,7 +58,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                 </p>
                 <span
                   className={cn(
-                    'font-mono text-sm font-medium w-24 text-right hidden sm:block',
+                    'font-mono text-sm font-medium w-28 text-right hidden sm:block',
                     tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
                   )}
                 >
