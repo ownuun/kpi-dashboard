@@ -33,12 +33,12 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
             {transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex flex-col gap-1.5 rounded-lg p-2.5 border border-slate-100 hover:bg-muted/50 transition-colors sm:grid sm:grid-cols-[auto_1fr_auto_auto] sm:items-center sm:gap-4 sm:border-0 sm:p-2"
+                className="flex flex-col gap-1.5 rounded-lg p-2.5 border border-slate-100 hover:bg-muted/50 transition-colors sm:grid sm:grid-cols-[5rem_1fr_auto_auto] sm:items-center sm:gap-4 sm:border-0 sm:p-2"
               >
-                <div className="flex items-center justify-between sm:justify-start">
+                <div className="flex items-center justify-between sm:justify-start sm:w-full">
                   <Badge
                     variant="outline"
-                    className="text-xs"
+                    className="text-xs truncate max-w-full"
                     style={{
                       borderColor: tx.categoryColor,
                       color: tx.categoryColor,
