@@ -37,8 +37,8 @@ export function MetricCard({
       </CardHeader>
       <CardContent className="px-3 pb-3 md:px-6 md:pb-5">
         <div className={cn('font-semibold font-mono tracking-tight', colorMap[type])}>
-          <span className="text-sm sm:text-[10px] md:text-xl">{formatKRWParts(value).symbol}</span>
-          <span className="text-lg sm:text-xs md:text-2xl">{formatKRWParts(value).number}</span>
+          <span className="text-sm sm:text-[10px] md:text-base">{formatKRWParts(value).symbol}</span>
+          <span className="text-lg sm:text-xs md:text-xl">{formatKRWParts(value).number}</span>
         </div>
         {changePercent !== undefined && (
           <div className="mt-2 flex items-center text-xs">
