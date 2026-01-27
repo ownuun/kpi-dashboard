@@ -58,7 +58,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                 </p>
                 <span
                   className={cn(
-                    'font-mono text-sm font-medium w-28 text-right hidden sm:block',
+                    'font-mono text-xs font-medium w-28 text-right hidden sm:block',
                     tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
                   )}
                 >
@@ -71,7 +71,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                   </span>
                   <span
                     className={cn(
-                      'font-mono text-sm font-medium shrink-0',
+                      'font-mono text-xs font-medium shrink-0',
                       tx.type === 'INCOME' ? 'text-emerald-500' : 'text-rose-500'
                     )}
                   >
