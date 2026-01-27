@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { formatKRW, formatShortDate } from '@/lib/format'
+import { formatKRWParts, formatShortDate } from '@/lib/format'
 import type { RecentTransaction } from '@/types'
 
 interface RecentTransactionsProps {
@@ -63,7 +63,8 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                   )}
                 >
                   {tx.type === 'INCOME' ? '+' : '-'}
-                  {formatKRW(tx.amount)}
+                  <span className="text-xs">{formatKRWParts(tx.amount).symbol}</span>
+                  {formatKRWParts(tx.amount).number}
                 </span>
                 <div className="flex items-center justify-between sm:hidden">
                   <span className="text-sm font-medium truncate">
@@ -76,7 +77,8 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
                     )}
                   >
                     {tx.type === 'INCOME' ? '+' : '-'}
-                    {formatKRW(tx.amount)}
+                    <span className="text-xs">{formatKRWParts(tx.amount).symbol}</span>
+                    {formatKRWParts(tx.amount).number}
                   </span>
                 </div>
               </div>
