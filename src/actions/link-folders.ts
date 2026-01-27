@@ -162,14 +162,14 @@ export async function createFolder(
       return { success: false, error: '같은 이름의 폴더가 이미 존재합니다' }
     }
 
-    // 최대 sortOrder 조회
-    const maxSortOrderFolder = await prisma.linkFolder.findFirst({
-      where:
-        ownerType === 'PERSONAL'
-          ? { userId: session.user.id, parentId: parentId || null, ownerType: 'PERSONAL' }
-          : { teamId: session.user.teamId!, parentId: parentId || null, ownerType: 'TEAM' },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
+    const folderWhereClause =
+      ownerType === 'PERSONAL'
+        ? { userId: session.user.id, parentId: parentId || null, ownerType: 'PERSONAL' as const }
+        : { teamId: session.user.teamId!, parentId: parentId || null, ownerType: 'TEAM' as const }
+
+    await prisma.linkFolder.updateMany({
+      where: folderWhereClause,
+      data: { sortOrder: { increment: 1 } },
     })
 
     const createData = {
@@ -177,7 +177,7 @@ export async function createFolder(
       icon,
       ownerType: ownerType as 'PERSONAL' | 'TEAM',
       parentId: parentId || null,
-      sortOrder: (maxSortOrderFolder?.sortOrder ?? -1) + 1,
+      sortOrder: 0,
       ...(ownerType === 'PERSONAL'
         ? { userId: session.user.id }
         : { teamId: session.user.teamId! }),
