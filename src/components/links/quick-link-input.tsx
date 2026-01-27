@@ -39,10 +39,8 @@ export function QuickLinkInput({
     selectedFolderId
   )
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-
-    if (!url.trim()) {
+  async function saveLink(inputUrl: string) {
+    if (!inputUrl.trim()) {
       toast.error('URL을 입력해주세요')
       return
     }
@@ -56,7 +54,7 @@ export function QuickLinkInput({
     setIsSubmitting(true)
 
     try {
-      let validUrl = url.trim()
+      let validUrl = inputUrl.trim()
       if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
         validUrl = 'https://' + validUrl
       }
@@ -96,16 +94,36 @@ export function QuickLinkInput({
     }
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    await saveLink(url)
+  }
+
+  async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const pastedText = e.clipboardData.getData('text')
+    if (pastedText && (pastedText.startsWith('http://') || pastedText.startsWith('https://') || pastedText.includes('.'))) {
+      e.preventDefault()
+      setUrl(pastedText)
+      await saveLink(pastedText)
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex gap-2">
-      <Input
-        type="text"
-        placeholder="URL 붙여넣기..."
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        className="flex-1"
-        disabled={isSubmitting}
-      />
+      <div className="relative flex-1">
+        <Input
+          type="text"
+          placeholder="URL 붙여넣기..."
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onPaste={handlePaste}
+          className="w-full pr-20"
+          disabled={isSubmitting}
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hidden lg:block">
+          Enter로 저장
+        </span>
+      </div>
 
       <Popover open={folderPopoverOpen} onOpenChange={setFolderPopoverOpen}>
         <PopoverTrigger asChild>
