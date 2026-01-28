@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 const PROTECTED_ROUTES = ['/', '/transactions', '/categories', '/settings']
-const PUBLIC_ROUTES = ['/login', '/join']
+const PUBLIC_ROUTES = ['/login', '/join', '/privacy', '/terms', '/contact']
 const AUTH_ONLY_ROUTES = ['/onboarding']
 
 export default auth((req) => {
