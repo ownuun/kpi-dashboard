@@ -193,8 +193,8 @@ export async function getLinks(
         const bOrder = orderMap.get(b.id)
         
         if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder
-        if (aOrder !== undefined) return 1   // b는 새 링크 → b 먼저
-        if (bOrder !== undefined) return -1  // a는 새 링크 → a 먼저
+        if (aOrder !== undefined && bOrder === undefined) return -1  // a에 순서 있음 → a 먼저
+        if (bOrder !== undefined && aOrder === undefined) return 1   // b에 순서 있음 → b 먼저
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       })
     }
