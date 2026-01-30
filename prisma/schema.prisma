@@ -71,10 +71,11 @@ model User {
   team   Team?    @relation("TeamMembers", fields: [teamId], references: [id])
   role   UserRole @default(MEMBER)
 
-  accounts     Account[]
-  sessions     Session[]
-  transactions Transaction[] @relation("CreatedBy")
-  createdTeams Team[]        @relation("TeamCreator")
+  accounts        Account[]
+  sessions        Session[]
+  transactions    Transaction[] @relation("CreatedBy")
+  createdTeams    Team[]        @relation("TeamCreator")
+  teamMemberships UserTeam[]
 
   // 링크 공유 관련 (폴더 기반)
   linkFolders    LinkFolder[]
@@ -109,6 +110,7 @@ model Team {
   creator   User?   @relation("TeamCreator", fields: [creatorId], references: [id])
 
   users        User[]        @relation("TeamMembers")
+  memberships  UserTeam[]
   categories   Category[]
   transactions Transaction[]
 
@@ -124,6 +126,24 @@ model Team {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("teams")
+}
+
+// 사용자-팀 다대다 관계 (역할 및 활성화 상태 포함)
+model UserTeam {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  teamId    String   @map("team_id")
+  role      UserRole @default(MEMBER)
+  isActive  Boolean  @default(false) @map("is_active")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([userId])
+  @@index([teamId])
+  @@map("user_teams")
 }
 
 enum TransactionType {
