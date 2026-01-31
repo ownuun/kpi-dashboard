@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Menu, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -14,6 +16,8 @@ import {
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { navigationConfig, type NavCategory } from '@/config/navigation'
+import { TeamSwitcher } from './team-switcher'
+import { switchTeam, getUserTeams } from '@/actions/teams'
 
 interface MobileNavProps {
   enabledTemplates?: string[]
@@ -91,6 +95,15 @@ function MobileNavCategory({
 
 export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const router = useRouter()
+  const { data: session, update } = useSession()
+  const [isPending, startTransition] = useTransition()
+  const [fetchedTeams, setFetchedTeams] = useState<Array<{ id: string; name: string; role: 'ADMIN' | 'MEMBER' }>>([])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const filteredNavigation = useMemo(() => {
     return navigationConfig.filter((category) => {
@@ -98,6 +111,39 @@ export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
       return enabledTemplates.includes(category.key)
     })
   }, [enabledTemplates])
+
+  const sessionTeams = session?.user?.teams || []
+  const teams = sessionTeams.length > 0 ? sessionTeams : fetchedTeams
+  const activeTeamId = session?.user?.activeTeamId || session?.user?.teamId || null
+
+  useEffect(() => {
+    const hasTeamButNoTeamsArray = (session?.user?.teamId || session?.user?.activeTeamId) && sessionTeams.length === 0
+    if (hasTeamButNoTeamsArray && fetchedTeams.length === 0) {
+      getUserTeams().then((result) => {
+        if (result.success && result.data.length > 0) {
+          setFetchedTeams(result.data)
+        }
+      })
+    }
+  }, [session?.user?.teamId, session?.user?.activeTeamId, sessionTeams.length, fetchedTeams.length])
+
+  const handleSwitchTeam = (teamId: string) => {
+    if (teamId === activeTeamId) return
+    
+    startTransition(async () => {
+      const result = await switchTeam(teamId)
+      if (result.success) {
+        await update({ activeTeamId: teamId })
+        toast.success(`${result.data.teamName} 팀으로 전환했습니다`)
+        setOpen(false)
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    })
+  }
+
+
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -113,6 +159,18 @@ export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
             KPI Dashboard
           </SheetTitle>
         </SheetHeader>
+        
+        {mounted && (teams.length > 0 || activeTeamId) && (
+          <div className="px-4 pt-4">
+            <TeamSwitcher
+              teams={teams}
+              activeTeamId={activeTeamId}
+              onSwitch={handleSwitchTeam}
+              isLoading={isPending || (teams.length === 0 && !!activeTeamId)}
+            />
+          </div>
+        )}
+
         <nav className="p-4 space-y-2">
           {filteredNavigation.map((category) => (
             <MobileNavCategory 

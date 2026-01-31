@@ -9,13 +9,11 @@ export default async function OnboardingPage() {
     redirect('/login')
   }
 
-  if (session.user.teamId) {
-    redirect('/')
-  }
+  const hasExistingTeam = !!(session.user.teamId || session.user.activeTeamId || (session.user.teams && session.user.teams.length > 0))
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <OnboardingForm userName={session.user.name} />
+      <OnboardingForm userName={session.user.name} hasExistingTeam={hasExistingTeam} />
     </div>
   )
 }

@@ -20,9 +20,10 @@ import { createTeam, joinTeam } from '@/actions/teams'
 
 interface OnboardingFormProps {
   userName?: string | null
+  hasExistingTeam?: boolean
 }
 
-export function OnboardingForm({ userName }: OnboardingFormProps) {
+export function OnboardingForm({ userName, hasExistingTeam }: OnboardingFormProps) {
   const router = useRouter()
   const { update } = useSession()
   const [isLoading, setIsLoading] = useState(false)
@@ -92,7 +93,9 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">환영합니다{userName ? `, ${userName}님` : ''}!</CardTitle>
+        <CardTitle className="text-2xl">
+          {hasExistingTeam ? '팀 추가' : `환영합니다${userName ? `, ${userName}님` : ''}!`}
+        </CardTitle>
         <CardDescription>
           새 팀을 만들거나, 초대 코드로 기존 팀에 합류하세요
         </CardDescription>
@@ -126,6 +129,17 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
                   onChange={(e) => setSecretKey(e.target.value)}
                   disabled={isLoading}
                 />
+                <p className="text-xs text-muted-foreground">
+                  시크릿 키가 없으신가요?{' '}
+                  <a
+                    href="https://open.kakao.com/o/gxfRDFYh"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 font-medium text-[#3C1E1E] bg-[#FEE500] hover:bg-[#FDD835] px-1.5 py-0.5 rounded transition-colors"
+                  >
+                    카카오톡 문의
+                  </a>
+                </p>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? '생성 중...' : '팀 만들기'}
@@ -152,6 +166,18 @@ export function OnboardingForm({ userName }: OnboardingFormProps) {
             </form>
           </TabsContent>
         </Tabs>
+        {hasExistingTeam && (
+          <div className="mt-4 pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => router.push('/')}
+            >
+              대시보드로 돌아가기
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

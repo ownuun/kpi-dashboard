@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { ChevronDown, MessageCircle, Settings, Puzzle } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { navigationConfig, type NavCategory } from '@/config/navigation'
+import { TeamSwitcher } from './team-switcher'
+import { switchTeam, getUserTeams } from '@/actions/teams'
 
 interface SidebarProps {
   enabledTemplates?: string[]
@@ -76,6 +80,11 @@ function NavCategorySection({ category }: { category: NavCategory }) {
 
 export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { data: session, update } = useSession()
+  const [isPending, startTransition] = useTransition()
+  const [fetchedTeams, setFetchedTeams] = useState<Array<{ id: string; name: string; role: 'ADMIN' | 'MEMBER' }>>([])
+  const [mounted, setMounted] = useState(false)
   
   const filteredNavigation = useMemo(() => {
     return navigationConfig.filter((category) => {
@@ -85,6 +94,41 @@ export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
     })
   }, [enabledTemplates])
 
+  const sessionTeams = session?.user?.teams || []
+  const teams = sessionTeams.length > 0 ? sessionTeams : fetchedTeams
+  const activeTeamId = session?.user?.activeTeamId || session?.user?.teamId || null
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (session?.user?.id && fetchedTeams.length === 0) {
+      getUserTeams().then((result) => {
+        if (result.success && result.data.length > 0) {
+          setFetchedTeams(result.data)
+        }
+      })
+    }
+  }, [session?.user?.id, fetchedTeams.length])
+
+  const handleSwitchTeam = (teamId: string) => {
+    if (teamId === activeTeamId) return
+    
+    startTransition(async () => {
+      const result = await switchTeam(teamId)
+      if (result.success) {
+        await update({ activeTeamId: teamId })
+        toast.success(`${result.data.teamName} 팀으로 전환했습니다`)
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    })
+  }
+
+
+
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200/70 bg-white hidden lg:flex lg:flex-col">
       <div className="flex h-16 items-center border-b border-slate-200/70 px-6">
@@ -92,6 +136,17 @@ export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
           KPI Dashboard
         </Link>
       </div>
+
+      {mounted && session?.user && (
+        <div className="px-4 pt-4">
+          <TeamSwitcher
+            teams={teams}
+            activeTeamId={activeTeamId}
+            onSwitch={handleSwitchTeam}
+            isLoading={isPending || teams.length === 0}
+          />
+        </div>
+      )}
 
       <nav className="flex-1 p-4 space-y-2">
         {filteredNavigation.map((category) => (

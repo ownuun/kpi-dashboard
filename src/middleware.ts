@@ -28,7 +28,8 @@ export default auth((req) => {
     if (pathname.startsWith('/join')) {
       return NextResponse.next()
     }
-    if (session?.user?.teamId && pathname === '/login') {
+    const userHasTeam = session?.user?.activeTeamId || session?.user?.teamId
+    if (userHasTeam && pathname === '/login') {
       return NextResponse.redirect(new URL('/', nextUrl.origin))
     }
     return NextResponse.next()
@@ -40,7 +41,9 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (!session.user.teamId) {
+  const hasTeam = session.user.activeTeamId || session.user.teamId || (session.user.teams && session.user.teams.length > 0)
+
+  if (!hasTeam) {
     if (isAuthOnlyRoute) {
       return NextResponse.next()
     }
@@ -49,9 +52,9 @@ export default auth((req) => {
     }
   }
 
-  if (session.user.teamId) {
+  if (hasTeam) {
     if (isAuthOnlyRoute) {
-      return NextResponse.redirect(new URL('/', nextUrl.origin))
+      return NextResponse.next()
     }
     return NextResponse.next()
   }

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { InviteCodeSection } from './invite-code-section'
 import { RemoveMemberButton } from './remove-member-button'
+import { DeleteTeamSection } from './delete-team-section'
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -19,6 +20,7 @@ export default async function SettingsPage() {
   }
 
   const team = result.data
+  const isAdmin = team.users.find(u => u.id === session?.user?.id)?.role === 'ADMIN'
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -98,6 +100,23 @@ export default async function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>팀 삭제</CardTitle>
+            <CardDescription>
+              팀을 삭제하면 모든 데이터가 영구적으로 삭제됩니다
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DeleteTeamSection
+              teamId={team.id}
+              teamName={team.name}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { ActionResult, TeamWithMembers } from '@/types'
-import { TransactionType } from '@prisma/client'
+import { TransactionType, type UserRole } from '@prisma/client'
 
 const createTeamSchema = z.object({
   name: z.string().min(2, '팀 이름은 2자 이상이어야 합니다').max(50),
@@ -77,15 +77,6 @@ export async function createTeam(
       return { success: false, error: 'Unauthorized' }
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { teamId: true },
-    })
-
-    if (user?.teamId) {
-      return { success: false, error: '이미 팀에 소속되어 있습니다' }
-    }
-
     const raw = {
       name: formData.get('name') as string,
       secretKey: formData.get('secretKey') as string,
@@ -96,7 +87,6 @@ export async function createTeam(
       return { success: false, error: parsed.error.issues[0].message }
     }
 
-    // 시크릿 키 검증
     const validSecretKey = process.env.TEAM_CREATE_SECRET
     if (!validSecretKey || parsed.data.secretKey !== validSecretKey) {
       return { success: false, error: '유효하지 않은 시크릿 키입니다' }
@@ -110,7 +100,20 @@ export async function createTeam(
         },
       })
 
-      // 팀 생성자는 ADMIN으로 설정
+      await tx.userTeam.updateMany({
+        where: { userId: session.user.id },
+        data: { isActive: false },
+      })
+
+      await tx.userTeam.create({
+        data: {
+          userId: session.user.id,
+          teamId: newTeam.id,
+          role: 'ADMIN',
+          isActive: true,
+        },
+      })
+
       await tx.user.update({
         where: { id: session.user.id },
         data: { teamId: newTeam.id, role: 'ADMIN' },
@@ -141,15 +144,6 @@ export async function joinTeam(
       return { success: false, error: 'Unauthorized' }
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { teamId: true },
-    })
-
-    if (user?.teamId) {
-      return { success: false, error: '이미 팀에 소속되어 있습니다' }
-    }
-
     const team = await prisma.team.findUnique({
       where: { inviteCode },
     })
@@ -158,9 +152,38 @@ export async function joinTeam(
       return { success: false, error: '유효하지 않은 초대 코드입니다' }
     }
 
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: { teamId: team.id, role: 'MEMBER' },
+    const existingMembership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId: team.id,
+        },
+      },
+    })
+
+    if (existingMembership) {
+      return { success: false, error: '이미 해당 팀에 소속되어 있습니다' }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.userTeam.updateMany({
+        where: { userId: session.user.id },
+        data: { isActive: false },
+      })
+
+      await tx.userTeam.create({
+        data: {
+          userId: session.user.id,
+          teamId: team.id,
+          role: 'MEMBER',
+          isActive: true,
+        },
+      })
+
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: { teamId: team.id, role: 'MEMBER' },
+      })
     })
 
     return {
@@ -173,22 +196,257 @@ export async function joinTeam(
   }
 }
 
+export async function switchTeam(
+  teamId: string
+): Promise<ActionResult<{ teamId: string; teamName: string }>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const membership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
+      include: { team: true },
+    })
+
+    if (!membership) {
+      return { success: false, error: '해당 팀의 멤버가 아닙니다' }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.userTeam.updateMany({
+        where: { userId: session.user.id },
+        data: { isActive: false },
+      })
+
+      await tx.userTeam.update({
+        where: { id: membership.id },
+        data: { isActive: true },
+      })
+
+      await tx.user.update({
+        where: { id: session.user.id },
+        data: { teamId, role: membership.role },
+      })
+    })
+
+    revalidatePath('/')
+
+    return {
+      success: true,
+      data: { teamId, teamName: membership.team.name },
+    }
+  } catch (error) {
+    console.error('switchTeam error:', error)
+    return { success: false, error: '팀 전환에 실패했습니다' }
+  }
+}
+
+export async function getUserTeams(): Promise<
+  ActionResult<Array<{ id: string; name: string; role: UserRole }>>
+> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const memberships = await prisma.userTeam.findMany({
+      where: { userId: session.user.id },
+      include: {
+        team: { select: { id: true, name: true } },
+      },
+      orderBy: { joinedAt: 'asc' },
+    })
+
+    const teams = memberships.map((m) => ({
+      id: m.team.id,
+      name: m.team.name,
+      role: m.role,
+    }))
+
+    return { success: true, data: teams }
+  } catch (error) {
+    console.error('getUserTeams error:', error)
+    return { success: false, error: '팀 목록 조회에 실패했습니다' }
+  }
+}
+
+export async function leaveTeam(
+  teamId: string
+): Promise<ActionResult<void>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const membership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
+    })
+
+    if (!membership) {
+      return { success: false, error: '해당 팀의 멤버가 아닙니다' }
+    }
+
+    if (membership.role === 'ADMIN') {
+      const adminCount = await prisma.userTeam.count({
+        where: { teamId, role: 'ADMIN' },
+      })
+      if (adminCount <= 1) {
+        return { success: false, error: '팀에 최소 한 명의 관리자가 필요합니다' }
+      }
+    }
+
+    const totalTeams = await prisma.userTeam.count({
+      where: { userId: session.user.id },
+    })
+
+    if (totalTeams <= 1) {
+      return { success: false, error: '최소 한 개의 팀에 소속되어야 합니다' }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.userTeam.delete({
+        where: { id: membership.id },
+      })
+
+      if (membership.isActive) {
+        const otherTeam = await tx.userTeam.findFirst({
+          where: { userId: session.user.id },
+        })
+
+        if (otherTeam) {
+          await tx.userTeam.update({
+            where: { id: otherTeam.id },
+            data: { isActive: true },
+          })
+
+          await tx.user.update({
+            where: { id: session.user.id },
+            data: { teamId: otherTeam.teamId, role: otherTeam.role },
+          })
+        }
+      }
+    })
+
+    revalidatePath('/')
+    revalidatePath('/settings')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    console.error('leaveTeam error:', error)
+    return { success: false, error: '팀 탈퇴에 실패했습니다' }
+  }
+}
+
+export async function deleteTeam(
+  teamId: string
+): Promise<ActionResult<{ nextTeamId: string | null; nextTeamName: string | null }>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const membership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
+    })
+
+    if (!membership || membership.role !== 'ADMIN') {
+      return { success: false, error: '관리자만 팀을 삭제할 수 있습니다' }
+    }
+
+    const nextTeam = await prisma.userTeam.findFirst({
+      where: { 
+        userId: session.user.id,
+        teamId: { not: teamId }
+      },
+      include: { team: { select: { id: true, name: true } } },
+      orderBy: { joinedAt: 'asc' },
+    })
+
+    await prisma.$transaction(async (tx) => {
+      await tx.userTeam.deleteMany({ where: { teamId } })
+
+      await tx.user.updateMany({
+        where: { teamId },
+        data: { teamId: null, role: 'MEMBER' },
+      })
+
+      if (nextTeam) {
+        await tx.userTeam.update({
+          where: { id: nextTeam.id },
+          data: { isActive: true },
+        })
+        await tx.user.update({
+          where: { id: session.user.id },
+          data: { teamId: nextTeam.teamId, role: nextTeam.role },
+        })
+      }
+
+      await tx.category.deleteMany({ where: { teamId } })
+      await tx.transaction.deleteMany({ where: { teamId } })
+      await tx.teamTemplate.deleteMany({ where: { teamId } })
+      await tx.linkFolder.deleteMany({ where: { teamId } })
+      await tx.link.deleteMany({ where: { teamId } })
+
+      await tx.team.delete({ where: { id: teamId } })
+    })
+
+    revalidatePath('/')
+    revalidatePath('/settings')
+
+    return { 
+      success: true, 
+      data: { 
+        nextTeamId: nextTeam?.team.id || null,
+        nextTeamName: nextTeam?.team.name || null
+      } 
+    }
+  } catch (error) {
+    console.error('deleteTeam error:', error)
+    return { success: false, error: '팀 삭제에 실패했습니다' }
+  }
+}
+
 export async function getTeam(): Promise<ActionResult<TeamWithMembers>> {
   try {
     const session = await auth()
-    if (!session?.user?.teamId) {
+    const teamId = session?.user?.activeTeamId || session?.user?.teamId
+    if (!teamId) {
       return { success: false, error: 'Unauthorized' }
     }
 
     const team = await prisma.team.findUnique({
-      where: { id: session.user.teamId },
+      where: { id: teamId },
       include: {
-        users: {
-          select: { id: true, name: true, email: true, image: true, role: true },
-          orderBy: { createdAt: 'asc' },
+        memberships: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+          orderBy: { joinedAt: 'asc' },
         },
         _count: {
-          select: { users: true, transactions: true },
+          select: { memberships: true, transactions: true },
         },
       },
     })
@@ -197,7 +455,19 @@ export async function getTeam(): Promise<ActionResult<TeamWithMembers>> {
       return { success: false, error: '팀을 찾을 수 없습니다' }
     }
 
-    return { success: true, data: team }
+    const transformedTeam = {
+      ...team,
+      users: team.memberships.map((m) => ({
+        ...m.user,
+        role: m.role,
+      })),
+      _count: {
+        users: team._count.memberships,
+        transactions: team._count.transactions,
+      },
+    }
+
+    return { success: true, data: transformedTeam as TeamWithMembers }
   } catch (error) {
     console.error('getTeam error:', error)
     return { success: false, error: '팀 정보 조회에 실패했습니다' }
@@ -207,12 +477,13 @@ export async function getTeam(): Promise<ActionResult<TeamWithMembers>> {
 export async function regenerateInviteCode(): Promise<ActionResult<string>> {
   try {
     const session = await auth()
-    if (!session?.user?.teamId) {
+    const teamId = session?.user?.activeTeamId || session?.user?.teamId
+    if (!teamId) {
       return { success: false, error: 'Unauthorized' }
     }
 
     const team = await prisma.team.update({
-      where: { id: session.user.teamId },
+      where: { id: teamId },
       data: { inviteCode: crypto.randomUUID().slice(0, 8).toUpperCase() },
     })
 
@@ -240,12 +511,13 @@ export async function joinTeamAndUpdateSession(
 export async function getEnabledTemplateCategories(): Promise<ActionResult<string[]>> {
   try {
     const session = await auth()
-    if (!session?.user?.teamId) {
+    const teamId = session?.user?.activeTeamId || session?.user?.teamId
+    if (!teamId) {
       return { success: false, error: 'Unauthorized' }
     }
 
     const team = await prisma.team.findUnique({
-      where: { id: session.user.teamId },
+      where: { id: teamId },
       select: { enabledTemplateCategories: true },
     })
 
@@ -264,7 +536,8 @@ export async function toggleTemplateCategory(
 ): Promise<ActionResult<void>> {
   try {
     const session = await auth()
-    if (!session?.user?.id || !session?.user?.teamId) {
+    const teamId = session?.user?.activeTeamId || session?.user?.teamId
+    if (!session?.user?.id || !teamId) {
       return { success: false, error: 'Unauthorized' }
     }
 
@@ -272,17 +545,21 @@ export async function toggleTemplateCategory(
       return { success: false, error: '매출관리는 비활성화할 수 없습니다' }
     }
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
+    const membership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
     })
 
-    if (currentUser?.role !== 'ADMIN') {
+    if (membership?.role !== 'ADMIN') {
       return { success: false, error: '관리자만 템플릿을 변경할 수 있습니다' }
     }
 
     const team = await prisma.team.findUnique({
-      where: { id: session.user.teamId },
+      where: { id: teamId },
       select: { enabledTemplateCategories: true },
     })
 
@@ -295,7 +572,7 @@ export async function toggleTemplateCategory(
     }
 
     await prisma.team.update({
-      where: { id: session.user.teamId },
+      where: { id: teamId },
       data: { enabledTemplateCategories: categories },
     })
 
@@ -314,35 +591,70 @@ export async function removeMember(
 ): Promise<ActionResult<void>> {
   try {
     const session = await auth()
-    if (!session?.user?.id || !session?.user?.teamId) {
+    const teamId = session?.user?.activeTeamId || session?.user?.teamId
+    if (!session?.user?.id || !teamId) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true, teamId: true },
+    const currentMembership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: session.user.id,
+          teamId,
+        },
+      },
     })
 
-    if (currentUser?.role !== 'ADMIN') {
+    if (currentMembership?.role !== 'ADMIN') {
       return { success: false, error: '관리자만 멤버를 삭제할 수 있습니다' }
     }
 
-    const targetUser = await prisma.user.findUnique({
-      where: { id: memberId },
-      select: { role: true, teamId: true },
+    const targetMembership = await prisma.userTeam.findUnique({
+      where: {
+        userId_teamId: {
+          userId: memberId,
+          teamId,
+        },
+      },
     })
 
-    if (!targetUser || targetUser.teamId !== currentUser.teamId) {
+    if (!targetMembership) {
       return { success: false, error: '해당 멤버를 찾을 수 없습니다' }
     }
 
-    if (targetUser.role === 'ADMIN') {
+    if (targetMembership.role === 'ADMIN') {
       return { success: false, error: '관리자는 삭제할 수 없습니다' }
     }
 
-    await prisma.user.update({
-      where: { id: memberId },
-      data: { teamId: null, role: 'MEMBER' },
+    await prisma.$transaction(async (tx) => {
+      await tx.userTeam.delete({
+        where: { id: targetMembership.id },
+      })
+
+      const remainingTeams = await tx.userTeam.count({
+        where: { userId: memberId },
+      })
+
+      if (remainingTeams === 0) {
+        await tx.user.update({
+          where: { id: memberId },
+          data: { teamId: null, role: 'MEMBER' },
+        })
+      } else if (targetMembership.isActive) {
+        const nextTeam = await tx.userTeam.findFirst({
+          where: { userId: memberId },
+        })
+        if (nextTeam) {
+          await tx.userTeam.update({
+            where: { id: nextTeam.id },
+            data: { isActive: true },
+          })
+          await tx.user.update({
+            where: { id: memberId },
+            data: { teamId: nextTeam.teamId, role: nextTeam.role },
+          })
+        }
+      }
     })
 
     revalidatePath('/settings')
