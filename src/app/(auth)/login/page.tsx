@@ -7,8 +7,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
-          <div className="flex justify-center">
-            <img src="/logo.png" alt="Slit" className="h-8" />
+          <div className="flex items-center justify-center gap-2">
+            <img src="/logo-icon.png" alt="" className="h-10 w-10" />
+            <img src="/logo.png" alt="Slit" className="h-7" />
           </div>
           <CardDescription>팀의 매출과 지출을 한눈에 관리하세요</CardDescription>
         </CardHeader>
