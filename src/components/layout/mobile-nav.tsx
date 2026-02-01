@@ -155,9 +155,8 @@ export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0">
         <SheetHeader className="h-16 flex items-center justify-center border-b border-slate-200/70 px-4">
-          <SheetTitle className="flex items-center gap-2">
-            <img src="/logo-icon.png" alt="" className="h-7 w-7" />
-            <img src="/logo.png" alt="Slit" className="h-5" />
+          <SheetTitle>
+            <img src="/logo.png" alt="Slit" className="h-6" />
           </SheetTitle>
         </SheetHeader>
         

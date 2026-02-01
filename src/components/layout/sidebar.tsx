@@ -132,9 +132,8 @@ export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200/70 bg-white hidden lg:flex lg:flex-col">
       <div className="flex h-16 items-center border-b border-slate-200/70 px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/logo-icon.png" alt="" className="h-7 w-7" />
-          <img src="/logo.png" alt="Slit" className="h-5" />
+        <Link href="/">
+          <img src="/logo.png" alt="Slit" className="h-6" />
         </Link>
       </div>
 
