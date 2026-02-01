@@ -154,9 +154,9 @@ export function MobileNav({ enabledTemplates = ['sales'] }: MobileNavProps) {
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-0">
-        <SheetHeader className="h-16 flex items-center justify-center border-b border-slate-200/70 px-6">
-          <SheetTitle className="text-lg font-semibold text-slate-800">
-            KPI Dashboard
+        <SheetHeader className="h-16 flex items-center justify-center border-b border-slate-200/70 px-4">
+          <SheetTitle>
+            <img src="/logo.png" alt="Slit" className="h-7" />
           </SheetTitle>
         </SheetHeader>
         

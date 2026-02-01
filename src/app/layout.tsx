@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'KPI Dashboard',
+  title: 'Slit',
   description: '팀의 매출과 지출을 한눈에 관리하세요',
 }
 

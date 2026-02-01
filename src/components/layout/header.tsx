@@ -21,7 +21,7 @@ export function Header({ user, enabledTemplates = ['sales'] }: HeaderProps) {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/70 bg-white/80 backdrop-blur-sm px-4 md:px-6 lg:px-8">
       <div className="flex items-center gap-3 lg:hidden">
         <MobileNav enabledTemplates={enabledTemplates} />
-        <span className="text-lg font-semibold text-slate-800">KPI Dashboard</span>
+        <img src="/logo.png" alt="Slit" className="h-6" />
       </div>
 
       <div className="ml-auto">

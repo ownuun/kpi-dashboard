@@ -2,8 +2,8 @@ import { Metadata } from 'next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const metadata: Metadata = {
-  title: '개인정보처리방침 | KPI Dashboard',
-  description: 'KPI Dashboard 개인정보처리방침',
+  title: '개인정보처리방침 | Slit',
+  description: 'Slit 개인정보처리방침',
 }
 
 export default function PrivacyPage() {
@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">1. 수집하는 개인정보</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              KPI Dashboard는 서비스 제공을 위해 Google OAuth를 통해 다음 정보를 수집합니다:
+              Slit은 서비스 제공을 위해 Google OAuth를 통해 다음 정보를 수집합니다:
             </p>
             <ul className="list-disc pl-6 text-sm text-muted-foreground space-y-1">
               <li>이메일 주소</li>
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
           <section className="mt-8 space-y-4">
             <h2 className="text-lg font-semibold">4. 개인정보의 제3자 제공</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              KPI Dashboard는 사용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다.
+              Slit은 사용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다.
             </p>
           </section>
 

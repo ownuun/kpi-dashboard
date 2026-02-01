@@ -29,7 +29,7 @@ export function Footer() {
             </Link>
           </nav>
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} KPI Dashboard. All rights reserved.
+            © {new Date().getFullYear()} Slit. All rights reserved.
           </p>
         </div>
       </div>

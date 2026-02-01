@@ -18,7 +18,7 @@ export default function ContactPage() {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    const subject = encodeURIComponent(`[KPI Dashboard 문의] ${name}`)
+    const subject = encodeURIComponent(`[Slit 문의] ${name}`)
     const body = encodeURIComponent(
       `보낸 사람: ${name}\n이메일: ${email}\n\n문의 내용:\n${message}`
     )

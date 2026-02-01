@@ -2,8 +2,8 @@ import { Metadata } from 'next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const metadata: Metadata = {
-  title: '이용약관 | KPI Dashboard',
-  description: 'KPI Dashboard 서비스 이용약관',
+  title: '이용약관 | Slit',
+  description: 'Slit 서비스 이용약관',
 }
 
 export default function TermsPage() {
@@ -20,7 +20,7 @@ export default function TermsPage() {
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">제1조 (목적)</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              본 약관은 KPI Dashboard(이하 &quot;서비스&quot;)의 이용과 관련하여 
+              본 약관은 Slit(이하 &quot;서비스&quot;)의 이용과 관련하여 
               서비스 제공자와 이용자 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
             </p>
           </section>

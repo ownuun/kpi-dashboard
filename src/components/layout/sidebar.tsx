@@ -131,9 +131,9 @@ export function Sidebar({ enabledTemplates = ['sales'] }: SidebarProps) {
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200/70 bg-white hidden lg:flex lg:flex-col">
-      <div className="flex h-16 items-center border-b border-slate-200/70 px-6">
-        <Link href="/" className="text-lg font-semibold text-slate-800">
-          KPI Dashboard
+      <div className="flex h-16 items-center border-b border-slate-200/70 px-4">
+        <Link href="/">
+          <img src="/logo.png" alt="Slit" className="h-7" />
         </Link>
       </div>
 

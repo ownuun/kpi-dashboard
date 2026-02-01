@@ -6,8 +6,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">KPI Dashboard</CardTitle>
+        <CardHeader className="text-center space-y-3">
+          <div className="flex justify-center">
+            <img src="/logo.png" alt="Slit" className="h-8" />
+          </div>
           <CardDescription>팀의 매출과 지출을 한눈에 관리하세요</CardDescription>
         </CardHeader>
         <CardContent>
